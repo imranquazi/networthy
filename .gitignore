@@ -15,3 +15,4 @@ yarn-error.log*
 # Env
 .env
 .env.local
+frontend/node_modules/
