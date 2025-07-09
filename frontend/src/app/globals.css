@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4faff;
+  --foreground: #1a2639;
+  --panel-bg: rgba(255,255,255,0.92);
+  --panel-border: #e0e7ef;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: linear-gradient(135deg, #2176ae 0%, #53fc18 100%);
+  color: var(--foreground);
+  font-family: 'Inter', 'Poppins', Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+}
+
+.font-greatvibes {
+  font-family: 'Great Vibes', cursive !important; /* For Networthy title */
+}
+
+.great-vibes-regular {
+  font-family: var(--font-great-vibes), cursive;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1.5px solid var(--panel-border);
+  box-shadow: 0 4px 32px 0 rgba(33, 118, 174, 0.10);
+  border-radius: 1.25rem;
+}
+
+/* Custom scrollbar for a modern look */
+::-webkit-scrollbar {
+  width: 8px;
+  background: #e0e7ef;
+}
+::-webkit-scrollbar-thumb {
+  background: #2176ae;
+  border-radius: 8px;
+}
+
+.text-networthyGreen-important {
+  color: #53fc18 !important;
+}
+.text-red-800-important {
+  color: #991b1b !important;
+}
