@@ -96,7 +96,7 @@ export default function HomePage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
-              <div className="bg-networthyBlue text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mb-4 mx-auto">
+              <div className="bg-black text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mb-4 mx-auto">
                 1
               </div>
               <h3 className="text-xl font-semibold text-black mb-3">Connect Your Platforms</h3>
@@ -105,7 +105,7 @@ export default function HomePage() {
               </p>
             </div>
             <div className="text-center">
-              <div className="bg-networthyGreen text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mb-4 mx-auto">
+              <div className="bg-black text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mb-4 mx-auto">
                 2
               </div>
               <h3 className="text-xl font-semibold text-black mb-3">Automatic Data Sync</h3>
@@ -114,7 +114,7 @@ export default function HomePage() {
               </p>
             </div>
             <div className="text-center">
-              <div className="bg-networthyYellow text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mb-4 mx-auto">
+              <div className="bg-black text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mb-4 mx-auto">
                 3
               </div>
               <h3 className="text-xl font-semibold text-black mb-3">Get Insights & Grow</h3>
@@ -131,28 +131,28 @@ export default function HomePage() {
             <h3 className="text-2xl font-bold text-black mb-6">Why Choose Networthy?</h3>
             <div className="space-y-4">
               <div className="flex items-start gap-3">
-                <CheckCircle className="w-6 h-6 text-networthyGreen mt-1 flex-shrink-0" />
+                <CheckCircle className="w-6 h-6 text-black mt-1 flex-shrink-0" />
                 <div>
                   <h4 className="font-semibold text-black">Unified Dashboard</h4>
                   <p className="text-gray-600 text-sm">View all your platforms in one place with real-time updates</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <CheckCircle className="w-6 h-6 text-networthyGreen mt-1 flex-shrink-0" />
+                <CheckCircle className="w-6 h-6 text-black mt-1 flex-shrink-0" />
                 <div>
                   <h4 className="font-semibold text-black">Revenue Optimization</h4>
                   <p className="text-gray-600 text-sm">Identify your highest-earning content and platforms</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <CheckCircle className="w-6 h-6 text-networthyGreen mt-1 flex-shrink-0" />
+                <CheckCircle className="w-6 h-6 text-black mt-1 flex-shrink-0" />
                 <div>
                   <h4 className="font-semibold text-black">Growth Tracking</h4>
                   <p className="text-gray-600 text-sm">Monitor your progress with detailed growth analytics</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <CheckCircle className="w-6 h-6 text-networthyGreen mt-1 flex-shrink-0" />
+                <CheckCircle className="w-6 h-6 text-black mt-1 flex-shrink-0" />
                 <div>
                   <h4 className="font-semibold text-black">Smart Insights</h4>
                   <p className="text-gray-600 text-sm">Get AI-powered recommendations to boost your earnings</p>
@@ -165,27 +165,27 @@ export default function HomePage() {
             <h3 className="text-2xl font-bold text-black mb-6">Perfect For</h3>
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-networthyYellow" />
+                <Star className="w-5 h-5 text-black" />
                 <span className="text-black font-medium">Content Creators</span>
               </div>
               <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-networthyYellow" />
+                <Star className="w-5 h-5 text-black" />
                 <span className="text-black font-medium">Streamers & Gamers</span>
               </div>
               <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-networthyYellow" />
+                <Star className="w-5 h-5 text-black" />
                 <span className="text-black font-medium">Social Media Influencers</span>
               </div>
               <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-networthyYellow" />
+                <Star className="w-5 h-5 text-black" />
                 <span className="text-black font-medium">Podcasters</span>
               </div>
               <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-networthyYellow" />
+                <Star className="w-5 h-5 text-black" />
                 <span className="text-black font-medium">Digital Artists</span>
               </div>
               <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-networthyYellow" />
+                <Star className="w-5 h-5 text-black" />
                 <span className="text-black font-medium">Anyone Building a Creator Business</span>
               </div>
             </div>

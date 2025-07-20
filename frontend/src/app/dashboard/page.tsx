@@ -44,13 +44,10 @@ function RevenueForm({ platform, initialRevenue, onClose, onSave }: RevenueFormP
       period: "monthly"
     };
 
-    const res = await fetch("http://localhost:4000/api/platforms", {
+    const res = await fetch(`http://localhost:4000/api/platforms/${platform}/revenue`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: platform,
-        revenue: Number(revenue)
-      })
+      body: JSON.stringify({ revenue: Number(revenue) })
     });
 
     if (res.ok) {
@@ -101,10 +98,30 @@ export default function CreatorDashboard() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingPlatform, setEditingPlatform] = useState<string | null>(null);
+  const [user, setUser] = useState<{ email: string; platform: string } | null>(null);
+  const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user: any } | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Check authentication status
+        const authRes = await fetch('http://localhost:4000/api/auth/status');
+        const authData = await authRes.json();
+        setAuthStatus(authData);
+
+        // Get URL parameters for OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const platform = urlParams.get('platform');
+        const email = urlParams.get('email');
+
+        if (platform && email) {
+          setUser({ email, platform });
+          // Clear URL parameters
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (authData.authenticated && authData.user) {
+          setUser(authData.user);
+        }
+
         const [platformsRes, analyticsRes] = await Promise.all([
           fetch('http://localhost:4000/api/platforms'),
           fetch('http://localhost:4000/api/analytics')
@@ -192,12 +209,35 @@ export default function CreatorDashboard() {
             <ArrowLeft className="w-5 h-5 mr-2" />
             Home
           </Link>
+          {user && (
+            <div className="flex items-center space-x-2 text-sm">
+              <span className="text-gray-600">Connected to {user.platform}:</span>
+              <span className="font-medium text-black">{user.email}</span>
+            </div>
+          )}
           <button className="p-2 text-black hover:text-networthyGreen transition-colors">
             <Bell className="w-6 h-6" />
           </button>
           <button className="p-2 text-black hover:text-networthyGreen transition-colors">
             <Settings className="w-6 h-6" />
           </button>
+          {authStatus?.authenticated && (
+            <button 
+              onClick={async () => {
+                try {
+                  await fetch('http://localhost:4000/api/auth/logout');
+                  setUser(null);
+                  setAuthStatus({ authenticated: false, user: null });
+                  window.location.href = '/login';
+                } catch (error) {
+                  console.error('Logout error:', error);
+                }
+              }}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              Logout
+            </button>
+          )}
         </div>
       </header>
 

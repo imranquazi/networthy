@@ -6,7 +6,14 @@ import { Pool } from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const pool = new Pool({ connectionString: process.env.PG_CONNECTION_STRING });
+// Initialize pool with error handling
+let pool = null;
+try {
+  pool = new Pool({ connectionString: process.env.PG_CONNECTION_STRING });
+} catch (error) {
+  console.warn('Database connection failed, OAuth will work without token storage:', error.message);
+}
+
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
 const IV_LENGTH = 16;
 
@@ -29,21 +36,40 @@ function decrypt(text) {
 }
 
 export async function storeToken(userId, platform, tokenObj) {
-  const encrypted = encrypt(JSON.stringify(tokenObj));
-  await pool.query(
-    `INSERT INTO user_tokens (user_id, platform, token) VALUES ($1, $2, $3)
-     ON CONFLICT (user_id, platform) DO UPDATE SET token = EXCLUDED.token`,
-    [userId, platform, encrypted]
-  );
+  if (!pool) {
+    console.warn('Database not available, skipping token storage');
+    return;
+  }
+  
+  try {
+    const encrypted = encrypt(JSON.stringify(tokenObj));
+    await pool.query(
+      `INSERT INTO user_tokens (user_id, platform, token) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, platform) DO UPDATE SET token = EXCLUDED.token`,
+      [userId, platform, encrypted]
+    );
+  } catch (error) {
+    console.error('Failed to store token:', error.message);
+  }
 }
 
 export async function getToken(userId, platform) {
-  const res = await pool.query(
-    'SELECT token FROM user_tokens WHERE user_id = $1 AND platform = $2',
-    [userId, platform]
-  );
-  if (res.rows.length === 0) return null;
-  return JSON.parse(decrypt(res.rows[0].token));
+  if (!pool) {
+    console.warn('Database not available, cannot retrieve token');
+    return null;
+  }
+  
+  try {
+    const res = await pool.query(
+      'SELECT token FROM user_tokens WHERE user_id = $1 AND platform = $2',
+      [userId, platform]
+    );
+    if (res.rows.length === 0) return null;
+    return JSON.parse(decrypt(res.rows[0].token));
+  } catch (error) {
+    console.error('Failed to retrieve token:', error.message);
+    return null;
+  }
 }
 
 // Google OAuth2 (YouTube)

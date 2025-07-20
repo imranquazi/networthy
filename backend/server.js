@@ -135,9 +135,21 @@ cron.schedule('*/5 * * * *', async () => {
 
 app.get("/api/auth/status", (req, res) => {
   res.json({ 
-    authenticated: true,
+    authenticated: req.session.authenticated || false,
+    user: req.session.user || null,
     connectedPlatforms: connectedPlatforms.length,
     lastUpdate: lastUpdate
+  });
+});
+
+app.get("/api/auth/logout", (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Logout error:', err);
+      res.status(500).json({ error: 'Logout failed' });
+    } else {
+      res.json({ success: true });
+    }
   });
 });
 
@@ -161,23 +173,37 @@ app.get("/api/auth/google/callback", async (req, res) => {
     const userinfo = await oauth2.request({ url: 'https://www.googleapis.com/oauth2/v2/userinfo' });
     const email = userinfo.data.email;
     await storeToken(email, 'youtube', tokens);
-    res.send("Google (YouTube) account connected! You can close this window.");
+    
+    // Set session data
+    req.session.user = { email, platform: 'youtube' };
+    req.session.authenticated = true;
+    
+    // Redirect to frontend dashboard
+    res.redirect('http://localhost:3000/dashboard?platform=youtube&email=' + encodeURIComponent(email));
   } catch (err) {
-    res.status(500).send("Google OAuth failed: " + err.message);
+    console.error('Google OAuth error:', err);
+    res.redirect('http://localhost:3000/login?error=google_oauth_failed');
   }
 });
 
 // Twitch OAuth
 app.get("/api/auth/twitch", passport.authenticate("twitch", { scope: ["user:read:email", "analytics:read:games", "channel:read:subscriptions"] }));
 
-app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRedirect: "/" }), async (req, res) => {
+app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRedirect: "http://localhost:3000/login?error=twitch_oauth_failed" }), async (req, res) => {
   try {
     const { accessToken, refreshToken, profile } = req.user;
     const email = profile.email;
     await storeToken(email, 'twitch', { accessToken, refreshToken });
-    res.send("Twitch account connected! You can close this window.");
+    
+    // Set session data
+    req.session.user = { email, platform: 'twitch' };
+    req.session.authenticated = true;
+    
+    // Redirect to frontend dashboard
+    res.redirect('http://localhost:3000/dashboard?platform=twitch&email=' + encodeURIComponent(email));
   } catch (err) {
-    res.status(500).send("Twitch OAuth failed: " + err.message);
+    console.error('Twitch OAuth error:', err);
+    res.redirect('http://localhost:3000/login?error=twitch_oauth_failed');
   }
 });
 
@@ -194,9 +220,16 @@ app.get("/api/auth/tiktok/callback", async (req, res) => {
     // Get user email (TikTok API may not provide email directly; use open_id or ask user to provide email in UI)
     const email = tokenData.email || `tiktok_${tokenData.open_id}`;
     await storeToken(email, 'tiktok', tokenData);
-    res.send("TikTok account connected! You can close this window.");
+    
+    // Set session data
+    req.session.user = { email, platform: 'tiktok' };
+    req.session.authenticated = true;
+    
+    // Redirect to frontend dashboard
+    res.redirect('http://localhost:3000/dashboard?platform=tiktok&email=' + encodeURIComponent(email));
   } catch (err) {
-    res.status(500).send("TikTok OAuth failed: " + err.message);
+    console.error('TikTok OAuth error:', err);
+    res.redirect('http://localhost:3000/login?error=tiktok_oauth_failed');
   }
 });
 
