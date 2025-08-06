@@ -1,6 +1,7 @@
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -12,6 +13,33 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
+  const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user?: any } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('http://localhost:4000/api/auth/me', {
+          credentials: 'include',
+          cache: 'no-cache' // Force fresh request
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+          setAuthStatus({ authenticated: true, user: data.user });
+        } else {
+          setAuthStatus({ authenticated: false });
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        setAuthStatus({ authenticated: false });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
   return (
     <div className="min-h-screen bg-gradient-to-br from-networthyBlue to-networthyGreen">
       {/* Header */}
@@ -25,9 +53,43 @@ export default function HomePage() {
           </h1>
         </div>
         <div className="flex items-center space-x-4">
-          <Link href="/dashboard" className="bg-networthyGreen text-white px-6 py-2 rounded-lg hover:bg-networthyGreen/90 transition-colors font-semibold">
-            Dashboard
-          </Link>
+                        {authStatus?.authenticated ? (
+                <>
+                  <span className="text-sm text-gray-600">
+                    Welcome, {authStatus.user?.email}
+                  </span>
+                  <Link href="/dashboard" className="bg-networthyGreen text-white px-6 py-2 rounded-lg hover:bg-networthyGreen/90 transition-colors font-semibold">
+                    Dashboard
+                  </Link>
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await fetch('http://localhost:4000/api/auth/logout', {
+                          credentials: 'include'
+                        });
+                        // Force page reload to clear all state
+                        window.location.reload();
+                      } catch (error) {
+                        console.error('Logout error:', error);
+                        // Force reload anyway
+                        window.location.reload();
+                      }
+                    }}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" className="text-black hover:text-networthyGreen transition-colors font-semibold">
+                    Sign In
+                  </Link>
+                  <Link href="/register" className="bg-networthyGreen text-white px-6 py-2 rounded-lg hover:bg-networthyGreen/90 transition-colors font-semibold">
+                    Get Started
+                  </Link>
+                </>
+              )}
         </div>
       </header>
 
@@ -41,8 +103,8 @@ export default function HomePage() {
             Networthy is your all-in-one platform for tracking revenue, growth, and performance across all your content creation platforms. 
             Get insights that help you grow your creator business.
           </p>
-          <Link href="/dashboard" className="inline-flex items-center bg-black text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors">
-            Get Started <ArrowRight className="ml-2 w-5 h-5" />
+          <Link href={authStatus?.authenticated ? "/dashboard" : "/register"} className="inline-flex items-center bg-black text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors">
+            {authStatus?.authenticated ? "Go to Dashboard" : "Get Started"} <ArrowRight className="ml-2 w-5 h-5" />
           </Link>
         </div>
 

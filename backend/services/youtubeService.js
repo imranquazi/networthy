@@ -7,15 +7,21 @@ class YouTubeService {
     this.apiKey = process.env.YOUTUBE_API_KEY;
   }
 
-  async getChannelStats(channelId) {
+  async getChannelStats(channelId, accessToken) {
     try {
-      if (!this.apiKey) {
-        throw new Error('YouTube API key not configured');
+      // Use OAuth2 client if accessToken is provided
+      let youtubeClient = this.youtube;
+      let authClient = null;
+      if (accessToken) {
+        const { OAuth2 } = google.auth;
+        authClient = new OAuth2();
+        authClient.setCredentials({ access_token: accessToken });
+        youtubeClient = google.youtube({ version: 'v3', auth: authClient });
       }
 
       // Get channel statistics
-      const channelResponse = await this.youtube.channels.list({
-        key: this.apiKey,
+      const channelResponse = await youtubeClient.channels.list({
+        ...(accessToken ? {} : { key: this.apiKey }),
         part: 'statistics,snippet',
         id: channelId
       });
@@ -29,8 +35,8 @@ class YouTubeService {
       const snippet = channel.snippet;
 
       // Get recent videos for views calculation
-      const videosResponse = await this.youtube.search.list({
-        key: this.apiKey,
+      const videosResponse = await youtubeClient.search.list({
+        ...(accessToken ? {} : { key: this.apiKey }),
         part: 'id',
         channelId: channelId,
         order: 'date',
@@ -43,8 +49,8 @@ class YouTubeService {
       // Get video statistics
       let totalViews = 0;
       if (videoIds.length > 0) {
-        const videosStatsResponse = await this.youtube.videos.list({
-          key: this.apiKey,
+        const videosStatsResponse = await youtubeClient.videos.list({
+          ...(accessToken ? {} : { key: this.apiKey }),
           part: 'statistics',
           id: videoIds.join(',')
         });

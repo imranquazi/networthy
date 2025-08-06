@@ -37,60 +37,107 @@ class TwitchService {
     }
   }
 
-  async getChannelStats(username) {
+  async getChannelStats(username, accessToken) {
     try {
-      const token = await this.authenticate();
-
-      // Get user information
-      const userResponse = await axios.get(`https://api.twitch.tv/helix/users?login=${username}`, {
-        headers: {
-          'Client-ID': this.clientId,
-          'Authorization': `Bearer ${token}`
+      let token;
+      let clientId = this.clientId;
+      
+      if (accessToken) {
+        // Use user's OAuth token for authenticated requests
+        token = accessToken;
+        // For user-specific data, we can get the user's own channel info
+        const userResponse = await axios.get('https://api.twitch.tv/helix/users', {
+          headers: {
+            'Client-ID': this.clientId,
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!userResponse.data.data || userResponse.data.data.length === 0) {
+          throw new Error('Twitch user not found');
         }
-      });
+        
+        const user = userResponse.data.data[0];
+        
+        // Note: Twitch deprecated the followers endpoint for security reasons
+        // Even for authenticated users, we can't get follower counts anymore
+        // We'll use view_count as a proxy metric
+        const followers = user.view_count || 0; // Use total view count as proxy
+        
+        // Get stream information for the authenticated user
+        const streamResponse = await axios.get(`https://api.twitch.tv/helix/streams?user_id=${user.id}`, {
+          headers: {
+            'Client-ID': this.clientId,
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        const stream = streamResponse.data.data[0];
+        const viewers = stream ? stream.viewer_count : 0;
+        
+        // Calculate estimated revenue
+        const estimatedRevenue = this.calculateEstimatedRevenue(followers, viewers);
+        
+        return {
+          name: 'Twitch',
+          followers: followers,
+          viewers: viewers,
+          revenue: estimatedRevenue,
+          growth: this.calculateGrowthRate(followers),
+          channelId: user.id,
+          channelName: user.display_name,
+          thumbnail: user.profile_image_url,
+          isLive: !!stream
+        };
+      } else {
+        // Fallback to client credentials flow for public data
+        token = await this.authenticate();
+        
+        // Get user information
+        const userResponse = await axios.get(`https://api.twitch.tv/helix/users?login=${username}`, {
+          headers: {
+            'Client-ID': this.clientId,
+            'Authorization': `Bearer ${token}`
+          }
+        });
 
-      if (!userResponse.data.data || userResponse.data.data.length === 0) {
-        throw new Error('Twitch user not found');
+        if (!userResponse.data.data || userResponse.data.data.length === 0) {
+          throw new Error('Twitch user not found');
+        }
+
+        const user = userResponse.data.data[0];
+
+        // Note: Twitch deprecated the followers endpoint for security reasons
+        // For public channels, we can't get exact follower counts anymore
+        // We'll use 0 as placeholder or estimate based on other metrics
+        const followers = 0; // Twitch no longer provides public follower counts
+
+        // Get stream information
+        const streamResponse = await axios.get(`https://api.twitch.tv/helix/streams?user_id=${user.id}`, {
+          headers: {
+            'Client-ID': this.clientId,
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const stream = streamResponse.data.data[0];
+        const viewers = stream ? stream.viewer_count : 0;
+
+        // Calculate estimated revenue
+        const estimatedRevenue = this.calculateEstimatedRevenue(followers, viewers);
+
+        return {
+          name: 'Twitch',
+          followers: followers,
+          viewers: viewers,
+          revenue: estimatedRevenue,
+          growth: this.calculateGrowthRate(followers),
+          channelId: user.id,
+          channelName: user.display_name,
+          thumbnail: user.profile_image_url,
+          isLive: !!stream
+        };
       }
-
-      const user = userResponse.data.data[0];
-
-      // Get follower count
-      const followersResponse = await axios.get(`https://api.twitch.tv/helix/users/follows?to_id=${user.id}`, {
-        headers: {
-          'Client-ID': this.clientId,
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const followers = followersResponse.data.total || 0;
-
-      // Get stream information
-      const streamResponse = await axios.get(`https://api.twitch.tv/helix/streams?user_id=${user.id}`, {
-        headers: {
-          'Client-ID': this.clientId,
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const stream = streamResponse.data.data[0];
-      const viewers = stream ? stream.viewer_count : 0;
-
-      // Calculate estimated revenue (Twitch doesn't provide direct revenue API)
-      // This is a rough estimation based on followers and viewers
-      const estimatedRevenue = this.calculateEstimatedRevenue(followers, viewers);
-
-      return {
-        name: 'Twitch',
-        followers: followers,
-        viewers: viewers,
-        revenue: estimatedRevenue,
-        growth: this.calculateGrowthRate(followers),
-        channelId: user.id,
-        channelName: user.display_name,
-        thumbnail: user.profile_image_url,
-        isLive: !!stream
-      };
     } catch (error) {
       console.error('Twitch API Error:', error.message);
       throw new Error(`Failed to fetch Twitch data: ${error.message}`);

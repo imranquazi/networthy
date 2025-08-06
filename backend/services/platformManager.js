@@ -133,16 +133,42 @@ class PlatformManager {
         ? growthRates.reduce((sum, rate) => sum + rate, 0) / growthRates.length 
         : 0;
 
-      // Find top platform by revenue
-      const topPlatform = platformStats.reduce((top, current) => 
+      // Find top platform by revenue (or by followers if all revenue is zero)
+      let topPlatform = platformStats.reduce((top, current) => 
         (current.revenue || 0) > (top.revenue || 0) ? current : top
       );
+      
+      // If all revenue is zero, find top platform by followers/subscribers
+      if (totalRevenue === 0) {
+        topPlatform = platformStats.reduce((top, current) => {
+          const currentFollowers = (current.followers || 0) + (current.subscribers || 0);
+          const topFollowers = (top.followers || 0) + (top.subscribers || 0);
+          return currentFollowers > topFollowers ? current : top;
+        });
+      }
 
       // Calculate platform breakdown
-      const breakdown = platformStats.map(platform => ({
-        platform: platform.name,
-        percentage: totalRevenue > 0 ? +(((platform.revenue || 0) / totalRevenue) * 100).toFixed(1) : 0
-      }));
+      let breakdown;
+      if (totalRevenue > 0) {
+        // Normal revenue-based breakdown
+        breakdown = platformStats.map(platform => ({
+          platform: platform.name,
+          percentage: +(((platform.revenue || 0) / totalRevenue) * 100).toFixed(1)
+        }));
+      } else {
+        // When revenue is zero, show breakdown by followers/subscribers
+        const totalFollowers = platformStats.reduce((sum, platform) => 
+          sum + (platform.followers || 0) + (platform.subscribers || 0), 0
+        );
+        
+        breakdown = platformStats.map(platform => {
+          const platformFollowers = (platform.followers || 0) + (platform.subscribers || 0);
+          return {
+            platform: platform.name,
+            percentage: totalFollowers > 0 ? +((platformFollowers / totalFollowers) * 100).toFixed(1) : 0
+          };
+        });
+      }
 
       // Generate monthly trend (last 6 months)
       const monthlyTrend = this.generateMonthlyTrend(totalRevenue);
@@ -163,6 +189,12 @@ class PlatformManager {
   generateMonthlyTrend(currentRevenue) {
     // Generate realistic monthly trend data
     const trend = [];
+    
+    if (currentRevenue === 0) {
+      // For zero revenue, show a flat line at zero
+      return [0, 0, 0, 0, 0, 0];
+    }
+    
     let baseRevenue = currentRevenue * 0.7; // Start at 70% of current revenue
     
     for (let i = 0; i < 6; i++) {
