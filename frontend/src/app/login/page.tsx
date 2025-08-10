@@ -14,13 +14,42 @@ export default function LoginPage() {
     // Check if user is already authenticated
     const checkAuth = async () => {
       try {
-        const response = await fetch('http://localhost:4000/api/auth/status');
-        const data = await response.json();
+        // Try token-based auth first
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          try {
+            const response = await fetch('http://localhost:4000/api/auth/status-token', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            const data = await response.json();
+            
+            if (data.authenticated) {
+              // User is already logged in, redirect to dashboard
+              window.location.href = '/dashboard';
+              return;
+            }
+          } catch {
+            console.log('Token auth failed, trying session auth...');
+          }
+        }
         
-        if (data.authenticated) {
-          // User is already logged in, redirect to dashboard
-          window.location.href = '/dashboard';
-        } else {
+        // Fallback to session-based auth
+        try {
+          const response = await fetch('http://localhost:4000/api/auth/status', {
+            credentials: 'include'
+          });
+          const data = await response.json();
+          
+          if (data.authenticated) {
+            // User is already logged in, redirect to dashboard
+            window.location.href = '/dashboard';
+          } else {
+            setLoading(false);
+          }
+        } catch {
+          console.log('Session auth failed, showing login form...');
           setLoading(false);
         }
       } catch (error) {
@@ -50,12 +79,16 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
+        // Store token for development
+        if (data.token) {
+          localStorage.setItem('authToken', data.token);
+        }
         // Redirect to dashboard on successful login
         window.location.href = '/dashboard';
       } else {
         setError(data.error || 'Login failed');
       }
-    } catch (error) {
+    } catch {
       setError('Network error. Please try again.');
     } finally {
       setLoginLoading(false);
@@ -76,7 +109,7 @@ export default function LoginPage() {
         <div className="mb-8 flex flex-col items-center">
           <Image src="/NETWORTHY.png" alt="Networthy Logo" width={64} height={64} className="rounded-full mb-2" />
           <h1 className="text-3xl font-bold text-black mb-2">Sign in to Networthy</h1>
-          <p className="text-gray-600 text-center">Connect your creator accounts to get started</p>
+          <p className="text-gray-600 text-center">Access your creator dashboard</p>
         </div>
 
         {error && (
@@ -124,34 +157,11 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Or connect platforms</span>
-          </div>
-        </div>
 
-        {/* OAuth Buttons */}
-        <div className="flex flex-col gap-4 w-full">
-          <Link href="http://localhost:4000/api/auth/google" className="flex items-center gap-3 bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors justify-center">
-            <Image src="/youtube-svgrepo-com.svg" alt="YouTube/Google" width={24} height={24} className="bg-white rounded-full" />
-            Continue with YouTube
-          </Link>
-          <Link href="http://localhost:4000/api/auth/twitch" className="flex items-center gap-3 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors justify-center">
-            <Image src="/twitch-svgrepo-com.svg" alt="Twitch" width={24} height={24} className="bg-white rounded-full" />
-            Continue with Twitch
-          </Link>
-          <Link href="http://localhost:4000/api/auth/tiktok" className="flex items-center gap-3 bg-black hover:bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold transition-colors justify-center">
-            <Image src="/tiktok-svgrepo-com.svg" alt="TikTok" width={24} height={24} className="bg-white rounded-full" />
-            Continue with TikTok
-          </Link>
-        </div>
 
         <div className="mt-6 text-center">
           <p className="text-gray-600">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/register" className="text-networthyGreen hover:underline">
               Create Account
             </Link>

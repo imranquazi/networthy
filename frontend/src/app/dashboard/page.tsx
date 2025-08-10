@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { 
@@ -11,6 +11,7 @@ import {
   Settings,
   ArrowLeft
 } from 'lucide-react';
+import RealTimeUpdates from '../../components/RealTimeUpdates';
 import { 
   LineChart, 
   Line, 
@@ -98,100 +99,209 @@ export default function CreatorDashboard() {
   const [loading, setLoading] = useState(true);
   const [editingPlatform, setEditingPlatform] = useState<string | null>(null);
   const [user, setUser] = useState<{ email: string; platform: string } | null>(null);
-  const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user: any } | null>(null);
+  const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user: { email: string; platform: string } | null } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
   const [dataStatus, setDataStatus] = useState<'mock' | 'real' | 'loading'>('loading');
 
-  useEffect(() => {
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
       try {
-        // Check authentication status
-        const authRes = await fetch('http://localhost:4000/api/auth/me', {
-          credentials: 'include'
-        });
-        const authData = await authRes.json();
-        
-        if (authRes.ok) {
-          setAuthStatus({ authenticated: true, user: authData.user });
-          // Check connected platforms for this user
-          const connectedPlatformsRes = await fetch('http://localhost:4000/api/auth/me', {
-            credentials: 'include'
-          });
-          if (connectedPlatformsRes.ok) {
-            const userData = await connectedPlatformsRes.json();
-            if (userData.user && userData.user.connectedPlatforms) {
-              setConnectedPlatforms(userData.user.connectedPlatforms.map((p: any) => p.name.toLowerCase()));
-            }
+      // Check authentication status - try token first, then session
+      const token = localStorage.getItem('authToken');
+      let authRes, authData;
+      
+      try {
+        if (token) {
+          // Try token-based auth
+          try {
+            authRes = await fetch('http://localhost:4000/api/auth/status-token', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            authData = await authRes.json();
+          } catch {
+            console.log('Token auth failed, trying session auth...');
           }
-        } else {
+        }
+        
+        if (!token || !authData?.authenticated) {
+          // Fallback to session-based auth
+          try {
+            authRes = await fetch('http://localhost:4000/api/auth/me', {
+              credentials: 'include'
+            });
+            authData = await authRes.json();
+          } catch {
+            console.log('Session auth failed, redirecting to login...');
+            window.location.href = '/login';
+            return;
+          }
+        }
+        
+        // Ensure authRes is defined
+        if (!authRes) {
           setAuthStatus({ authenticated: false, user: null });
-          // Redirect to login if not authenticated
           window.location.href = '/login';
           return;
         }
-
-        // Get URL parameters for OAuth callback
-        const urlParams = new URLSearchParams(window.location.search);
-        const platform = urlParams.get('platform');
-        const email = urlParams.get('email');
-
-        if (platform && email) {
-          setUser({ email, platform });
-          // Clear URL parameters
-          window.history.replaceState({}, document.title, window.location.pathname);
-          // Update connected platforms after OAuth
-          setConnectedPlatforms(prev => [...prev, platform.toLowerCase()]);
-          // Show success message
-          alert(`Successfully connected ${platform}! Your data will appear in the dashboard.`);
-        } else if (authData.authenticated && authData.user) {
-          setUser(authData.user);
+      } catch (error) {
+        console.error('Authentication failed:', error);
+        window.location.href = '/login';
+        return;
+      }
+      
+      if (authRes.ok && authData.authenticated) {
+        setAuthStatus({ authenticated: true, user: authData.user });
+        // Check connected platforms for this user
+        const connectedPlatformsRes = await fetch('http://localhost:4000/api/auth/me', {
+          credentials: 'include'
+        });
+        if (connectedPlatformsRes.ok) {
+          const userData = await connectedPlatformsRes.json();
+          if (userData.user && userData.user.platform) {
+            setConnectedPlatforms(userData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
+          }
         }
+      } else {
+        setAuthStatus({ authenticated: false, user: null });
+        // Redirect to login if not authenticated
+        window.location.href = '/login';
+        return;
+      }
 
+      // Get URL parameters for OAuth callback
+      const urlParams = new URLSearchParams(window.location.search);
+      const platform = urlParams.get('platform');
+      const email = urlParams.get('email');
+
+      if (platform && email) {
+        setUser({ email, platform });
+        // Clear URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname);
+        // Update connected platforms after OAuth
+        setConnectedPlatforms(prev => [...prev, platform.toLowerCase()]);
+        // Show success message
+        alert(`Successfully connected ${platform}! Your data will appear in the dashboard.`);
+      } else if (authData.authenticated && authData.user) {
+        setUser(authData.user);
+      }
+
+      // Force refresh platform data if user has connected platforms
+      const forceRefresh = connectedPlatforms.length > 0;
+      const refreshParam = forceRefresh ? '?refresh=true' : '';
+      
+      // If user has connected platforms, add a small delay to ensure backend is ready
+      if (forceRefresh) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
         const [platformsRes, analyticsRes] = await Promise.all([
-          fetch('http://localhost:4000/api/platforms', {
-            credentials: 'include',
-            cache: 'no-cache'
-          }),
-          fetch('http://localhost:4000/api/analytics')
+        fetch(`http://localhost:4000/api/platforms${refreshParam}`, {
+          credentials: 'include',
+          cache: 'no-cache',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        }),
+        fetch(`http://localhost:4000/api/analytics${refreshParam}`, {
+          credentials: 'include',
+          cache: 'no-cache',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        })
         ]);
 
         const platforms = await platformsRes.json();
         const analytics = await analyticsRes.json();
 
-        console.log('Platform data received:', platforms);
-        // Defensive check: ensure platforms is an array
-        if (Array.isArray(platforms)) {
-          setPlatformData(platforms);
-          setAnalyticsData(analytics);
-          // Determine if data is real or mock based on platform data
-          const hasRealData = platforms.some((platform: PlatformData) => {
-            // Check if this is the exact mock data pattern
-            const isMockData = (
-              (platform.name === 'YouTube' && platform.subscribers === 125000) ||
-              (platform.name === 'Twitch' && platform.followers === 45000) ||
-              (platform.name === 'TikTok' && platform.followers === 89000) ||
-              (platform.name === 'Instagram' && platform.followers === 67000)
-            );
-            
-            // If it's not mock data, it's real data (even if values are zero)
-            return !isMockData;
-          });
-          setDataStatus(hasRealData ? 'real' : 'mock');
+      console.log('Platform data received:', platforms);
+      console.log('Platform data type:', typeof platforms);
+      console.log('Platform data is array:', Array.isArray(platforms));
+      if (Array.isArray(platforms) && platforms.length > 0) {
+        console.log('First platform structure:', Object.keys(platforms[0]));
+      }
+      console.log('Connected platforms:', connectedPlatforms);
+      
+      // Defensive check: ensure platforms is an array and has correct structure
+      if (Array.isArray(platforms)) {
+        // Ensure each platform has the expected structure
+        const validPlatforms = platforms.filter(platform => {
+          if (typeof platform !== 'object' || platform === null) {
+            console.error('Invalid platform object:', platform);
+            return false;
+          }
+          if (!platform.name || typeof platform.name !== 'string') {
+            console.error('Platform missing name:', platform);
+            return false;
+          }
+          return true;
+        });
+        
+        if (validPlatforms.length !== platforms.length) {
+          console.warn('Some platforms were filtered out due to invalid structure');
+        }
+        
+        setPlatformData(validPlatforms);
+        // Determine if data is real or mock based on platform data
+        const hasRealData = platforms.some((platform: PlatformData) => {
+          // Check if this is the exact mock data pattern
+          const isMockData = (
+            (platform.name === 'YouTube' && platform.subscribers === 125000) ||
+            (platform.name === 'Twitch' && platform.followers === 45000) ||
+            (platform.name === 'TikTok' && platform.followers === 89000)
+          );
+          
+          // If it's not mock data, it's real data (even if values are zero)
+          return !isMockData;
+        });
+        
+        // If user has connected platforms but we're getting mock data, retry once
+        if (connectedPlatforms.length > 0 && !hasRealData && !refreshParam.includes('retry')) {
+          console.log('Detected mock data for authenticated user, retrying...');
+          // Wait a moment for backend to process, then retry
+          setTimeout(() => {
+            fetchData();
+          }, 1000);
+          return;
+        }
+
+        setPlatformData(platforms);
+        setAnalyticsData(analytics);
+        
+        // Update data status based on whether we have real data
+        if (hasRealData) {
+          setDataStatus('real');
         } else {
-          setPlatformData([]);
-          setAnalyticsData(null);
           setDataStatus('mock');
         }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
+      } else {
+        console.error('Platforms data is not an array:', platforms);
+        setPlatformData([]);
+        setDataStatus('mock');
       }
-    };
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      // Retry after a short delay if it's a network error
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        setTimeout(() => {
+          fetchData();
+        }, 1000);
+      } else {
+        setLoading(false);
+        setDataStatus('mock');
+      }
+    }
+    }, [connectedPlatforms]);
 
+  useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const getPlatformIcon = (platform: string) => {
     switch (platform.toLowerCase()) {
@@ -242,8 +352,8 @@ export default function CreatorDashboard() {
       });
       if (response.ok) {
         const userData = await response.json();
-        if (userData.user && userData.user.connectedPlatforms) {
-          setConnectedPlatforms(userData.user.connectedPlatforms.map((p: any) => p.name.toLowerCase()));
+        if (userData.user && userData.user.platform) {
+          setConnectedPlatforms(userData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
         }
       }
     } catch (error) {
@@ -278,7 +388,7 @@ export default function CreatorDashboard() {
           </Link>
           {user && (
             <div className="flex items-center space-x-2 text-sm">
-              <span className="text-gray-600">Connected to {user.platform}:</span>
+              <span className="text-gray-600">Connected to {Array.isArray(user.platform) ? user.platform.map(p => p.name).join(', ') : user.platform}:</span>
               <span className="font-medium text-black">{user.email}</span>
             </div>
           )}
@@ -349,7 +459,7 @@ export default function CreatorDashboard() {
                 </h3>
                 <div className="mt-2 text-sm text-yellow-700">
                   <p>
-                    Your platform is connected but we can't retrieve your data due to a database connection issue. 
+                    Your platform is connected but we can&apos;t retrieve your data due to a database connection issue. 
                     The graphs below show zero values until this is resolved.
                   </p>
                 </div>
@@ -509,7 +619,7 @@ export default function CreatorDashboard() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-networthyLight">
-                {platformData.map((platform) => (
+                {platformData.filter(platform => platform && typeof platform === 'object' && platform.name).map((platform) => (
                   <tr key={platform.name} className="hover:bg-networthyLight/60 transition">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -696,6 +806,23 @@ export default function CreatorDashboard() {
           </div>
         </div>
       )}
+
+      {/* Real-time Updates Component */}
+      <RealTimeUpdates 
+        onUpdate={(update) => {
+          console.log('🔄 Real-time update received:', update);
+          if (update.type === 'platform_update') {
+            // Refresh data when we receive a platform update
+            window.location.reload();
+          }
+        }}
+        onConnect={() => {
+          console.log('✅ Real-time connection established');
+        }}
+        onDisconnect={() => {
+          console.log('❌ Real-time connection lost');
+        }}
+      />
     </div>
   );
 } 

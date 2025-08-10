@@ -13,12 +13,32 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
-  const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user?: any } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user?: { email: string; platform: string } } | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Try token-based auth first
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          try {
+            const response = await fetch('http://localhost:4000/api/auth/status-token', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            const data = await response.json();
+            
+            if (data.authenticated) {
+              setAuthStatus({ authenticated: true, user: data.user });
+              return;
+            }
+          } catch {
+            console.log('Token auth failed, trying session auth...');
+          }
+        }
+        
+        // Fallback to session-based auth
         const response = await fetch('http://localhost:4000/api/auth/me', {
           credentials: 'include',
           cache: 'no-cache' // Force fresh request
@@ -32,13 +52,17 @@ export default function HomePage() {
         }
       } catch (error) {
         console.error('Auth check failed:', error);
+        // Don't retry on network errors, just show unauthenticated state
         setAuthStatus({ authenticated: false });
-      } finally {
-        setLoading(false);
       }
     };
 
-    checkAuth();
+    // Add a small delay before the first check to ensure backend is ready
+    const timer = setTimeout(() => {
+      checkAuth();
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, []);
   return (
     <div className="min-h-screen bg-gradient-to-br from-networthyBlue to-networthyGreen">
@@ -85,7 +109,7 @@ export default function HomePage() {
                   <Link href="/login" className="text-black hover:text-networthyGreen transition-colors font-semibold">
                     Sign In
                   </Link>
-                  <Link href="/register" className="bg-networthyGreen text-white px-6 py-2 rounded-lg hover:bg-networthyGreen/90 transition-colors font-semibold">
+                  <Link href="/register" className="bg-networthyGreen text-black px-6 py-2 rounded-lg hover:bg-networthyGreen/90 transition-colors font-semibold">
                     Get Started
                   </Link>
                 </>
@@ -272,7 +296,7 @@ export default function HomePage() {
       <footer className="bg-white/80 py-8 mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-gray-600">
-            © 2024 Networthy. Empowering creators to track, analyze, and grow their success.
+            © 2025 Networthy. Empowering creators to track, analyze, and grow their success.
           </p>
         </div>
       </footer>

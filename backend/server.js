@@ -214,9 +214,13 @@ app.post("/api/auth/login", async (req, res) => {
     req.session.user = { email: user.email, id: user.id };
     req.session.authenticated = true;
     
+    // Generate a simple token for development (base64 encoded email:timestamp)
+    const token = Buffer.from(`${user.email}:${Date.now()}`).toString('base64');
+    
     res.json({ 
       success: true, 
       user: { email: user.email, id: user.id },
+      token: token,
       message: 'Login successful' 
     });
   } catch (error) {
@@ -264,6 +268,53 @@ app.get("/api/auth/status", (req, res) => {
     connectedPlatforms: connectedPlatforms.length,
     lastUpdate: lastUpdate
   });
+});
+
+app.get("/api/auth/status-token", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const tokenParam = req.query.token;
+    
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (tokenParam) {
+      token = tokenParam;
+    }
+    
+    if (!token) {
+      return res.json({ authenticated: false });
+    }
+    
+    // Decode the token (simple base64 for development)
+    try {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8');
+      const [email, timestamp] = decoded.split(':');
+      
+      // Check if token is not expired (24 hours)
+      const tokenTime = parseInt(timestamp);
+      const currentTime = Date.now();
+      if (currentTime - tokenTime > 24 * 60 * 60 * 1000) {
+        return res.json({ authenticated: false });
+      }
+      
+      // Find user by email
+      const user = await findUserByEmail(email);
+      if (user) {
+        return res.json({ 
+          authenticated: true, 
+          user: { email: user.email, platform: user.connected_platforms || [] }
+        });
+      }
+    } catch (decodeError) {
+      console.error('Token decode error:', decodeError);
+    }
+    
+    res.json({ authenticated: false });
+  } catch (error) {
+    console.error('Status token error:', error);
+    res.json({ authenticated: false });
+  }
 });
 
 app.get("/api/auth/logout", (req, res) => {

@@ -1,15 +1,13 @@
 import YouTubeService from './youtubeService.js';
 import TwitchService from './twitchService.js';
 import TikTokService from './tiktokService.js';
-import InstagramService from './instagramService.js';
 
 class PlatformManager {
   constructor() {
     this.services = {
       youtube: new YouTubeService(),
       twitch: new TwitchService(),
-      tiktok: new TikTokService(),
-      instagram: new InstagramService()
+      tiktok: new TikTokService()
     };
     
     this.cache = new Map();
@@ -36,9 +34,7 @@ class PlatformManager {
         case 'tiktok':
           stats = await this.services.tiktok.getCreatorStats(identifier);
           break;
-        case 'instagram':
-          stats = await this.services.instagram.getCreatorStats(identifier);
-          break;
+
         default:
           throw new Error(`Unsupported platform: ${platform}`);
       }
@@ -108,15 +104,7 @@ class PlatformManager {
         channelId: '',
         channelName: 'Unknown Creator'
       },
-      instagram: {
-        name: 'Instagram',
-        followers: 0,
-        engagement: 0,
-        revenue: 0,
-        growth: 0,
-        channelId: '',
-        channelName: 'Unknown Account'
-      }
+
     };
 
     return fallbackData[platformName.toLowerCase()] || fallbackData.youtube;
@@ -152,7 +140,7 @@ class PlatformManager {
       if (totalRevenue > 0) {
         // Normal revenue-based breakdown
         breakdown = platformStats.map(platform => ({
-          platform: platform.name,
+        platform: platform.name,
           percentage: +(((platform.revenue || 0) / totalRevenue) * 100).toFixed(1)
         }));
       } else {

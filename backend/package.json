@@ -30,6 +30,7 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-twitch-new": "^0.0.3",
     "pg": "^8.0.0",
-    "supabase": "^2.30.4"
+    "supabase": "^2.30.4",
+    "winston": "^3.17.0"
   }
 }
