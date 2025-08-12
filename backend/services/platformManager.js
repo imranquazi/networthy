@@ -1,6 +1,7 @@
 import YouTubeService from './youtubeService.js';
 import TwitchService from './twitchService.js';
 import TikTokService from './tiktokService.js';
+import HistoryService from './historyService.js';
 
 class PlatformManager {
   constructor() {
@@ -10,13 +11,14 @@ class PlatformManager {
       tiktok: new TikTokService()
     };
     
+    this.historyService = new HistoryService();
     this.cache = new Map();
     this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
   }
 
-  async getPlatformStats(platform, identifier) {
+  async getPlatformStats(platform, identifier, userId = null) {
     try {
-      const cacheKey = `${platform}_${identifier}`;
+      const cacheKey = `${platform}_${identifier}_${userId || 'public'}`;
       const cached = this.cache.get(cacheKey);
       
       if (cached && Date.now() < cached.expiry) {
@@ -26,13 +28,13 @@ class PlatformManager {
       let stats;
       switch (platform.toLowerCase()) {
         case 'youtube':
-          stats = await this.services.youtube.getChannelStats(identifier);
+          stats = await this.services.youtube.getChannelStats(identifier, null, userId);
           break;
         case 'twitch':
-          stats = await this.services.twitch.getChannelStats(identifier);
+          stats = await this.services.twitch.getChannelStats(identifier, null, userId);
           break;
         case 'tiktok':
-          stats = await this.services.tiktok.getCreatorStats(identifier);
+          stats = await this.services.tiktok.getCreatorStats(identifier, userId);
           break;
 
         default:
@@ -52,11 +54,11 @@ class PlatformManager {
     }
   }
 
-  async getAllPlatformStats(platforms) {
+  async getAllPlatformStats(platforms, userId = null) {
     try {
       const promises = platforms.map(async (platform) => {
         try {
-          return await this.getPlatformStats(platform.name, platform.identifier);
+          return await this.getPlatformStats(platform.name, platform.identifier, userId);
         } catch (error) {
           console.error(`Failed to fetch ${platform.name} data:`, error.message);
           // Return fallback data
@@ -110,7 +112,7 @@ class PlatformManager {
     return fallbackData[platformName.toLowerCase()] || fallbackData.youtube;
   }
 
-  async calculateAnalytics(platformStats) {
+  async calculateAnalytics(platformStats, userId = null) {
     try {
       const totalRevenue = platformStats.reduce((sum, platform) => sum + (platform.revenue || 0), 0);
       const totalFollowers = platformStats.reduce((sum, platform) => sum + (platform.followers || 0), 0);
@@ -158,8 +160,22 @@ class PlatformManager {
         });
       }
 
-      // Generate monthly trend (last 6 months)
-      const monthlyTrend = this.generateMonthlyTrend(totalRevenue);
+      // Store total revenue in history if userId is provided
+      if (userId && totalRevenue > 0) {
+        try {
+          await this.historyService.storeTotalRevenue(userId, totalRevenue);
+        } catch (error) {
+          console.error('Error storing total revenue:', error);
+        }
+      }
+
+      // Generate monthly trend based on historical data
+      let monthlyTrend;
+      if (userId) {
+        monthlyTrend = await this.historyService.calculateRevenueTrend(userId, totalRevenue);
+      } else {
+        monthlyTrend = this.generateMonthlyTrend(totalRevenue);
+      }
 
       return {
         totalRevenue,
@@ -175,14 +191,13 @@ class PlatformManager {
   }
 
   generateMonthlyTrend(currentRevenue) {
-    // Generate realistic monthly trend data
-    const trend = [];
-    
+    // For zero revenue, show a flat line at zero
     if (currentRevenue === 0) {
-      // For zero revenue, show a flat line at zero
       return [0, 0, 0, 0, 0, 0];
     }
     
+    // Generate realistic monthly trend data only for non-zero revenue
+    const trend = [];
     let baseRevenue = currentRevenue * 0.7; // Start at 70% of current revenue
     
     for (let i = 0; i < 6; i++) {

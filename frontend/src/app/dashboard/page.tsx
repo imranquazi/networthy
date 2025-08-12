@@ -83,6 +83,7 @@ interface PlatformData {
   engagement?: number;
   revenue: number;
   growth: number;
+  error?: string;
 }
 
 interface AnalyticsData {
@@ -120,8 +121,8 @@ export default function CreatorDashboard() {
               }
             });
             authData = await authRes.json();
-          } catch {
-            console.log('Token auth failed, trying session auth...');
+          } catch (error) {
+            console.log('Token auth failed, trying session auth...', error);
           }
         }
         
@@ -132,41 +133,55 @@ export default function CreatorDashboard() {
               credentials: 'include'
             });
             authData = await authRes.json();
-          } catch {
-            console.log('Session auth failed, redirecting to login...');
-            window.location.href = '/login';
+          } catch (error) {
+            console.log('Session auth failed, but not redirecting immediately...', error);
+            // Don't redirect immediately on network errors
+            setAuthStatus({ authenticated: false, user: null });
+            setLoading(false);
             return;
           }
         }
         
         // Ensure authRes is defined
         if (!authRes) {
+          console.log('No auth response, but not redirecting immediately...');
           setAuthStatus({ authenticated: false, user: null });
-          window.location.href = '/login';
+          setLoading(false);
           return;
         }
       } catch (error) {
         console.error('Authentication failed:', error);
-        window.location.href = '/login';
+        // Don't redirect on network errors, just set loading to false
+        setAuthStatus({ authenticated: false, user: null });
+        setLoading(false);
         return;
       }
       
       if (authRes.ok && authData.authenticated) {
         setAuthStatus({ authenticated: true, user: authData.user });
-        // Check connected platforms for this user
-        const connectedPlatformsRes = await fetch('http://localhost:4000/api/auth/me', {
-          credentials: 'include'
-        });
-        if (connectedPlatformsRes.ok) {
-          const userData = await connectedPlatformsRes.json();
-          if (userData.user && userData.user.platform) {
-            setConnectedPlatforms(userData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
+        // Check connected platforms for this user using token authentication
+        const authToken = localStorage.getItem('authToken');
+        if (authToken) {
+          try {
+            const connectedPlatformsRes = await fetch('http://localhost:4000/api/auth/status-token', {
+              headers: {
+                'Authorization': `Bearer ${authToken}`
+              }
+            });
+            if (connectedPlatformsRes.ok) {
+              const userData = await connectedPlatformsRes.json();
+              if (userData.user && userData.user.platform) {
+                setConnectedPlatforms(userData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching connected platforms:', error);
           }
         }
       } else {
         setAuthStatus({ authenticated: false, user: null });
-        // Redirect to login if not authenticated
-        window.location.href = '/login';
+        // Don't redirect immediately, just set loading to false
+        setLoading(false);
         return;
       }
 
@@ -196,27 +211,45 @@ export default function CreatorDashboard() {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-        const [platformsRes, analyticsRes] = await Promise.all([
-        fetch(`http://localhost:4000/api/platforms${refreshParam}`, {
-          credentials: 'include',
-          cache: 'no-cache',
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        }),
-        fetch(`http://localhost:4000/api/analytics${refreshParam}`, {
-          credentials: 'include',
-          cache: 'no-cache',
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        })
-        ]);
+        // Use token-based authentication for API calls
+        const authToken = localStorage.getItem('authToken');
+        const headers: Record<string, string> = {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        };
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`;
+        }
+        
+        let platforms, analytics;
+        
+        try {
+          const [platformsRes, analyticsRes] = await Promise.all([
+            fetch(`http://localhost:4000/api/platforms${refreshParam}`, {
+              credentials: 'include',
+              cache: 'no-cache',
+              headers
+            }),
+            fetch(`http://localhost:4000/api/analytics${refreshParam}`, {
+              credentials: 'include',
+              cache: 'no-cache',
+              headers
+            })
+          ]);
 
-        const platforms = await platformsRes.json();
-        const analytics = await analyticsRes.json();
+          if (!platformsRes.ok || !analyticsRes.ok) {
+            throw new Error(`API request failed: platforms=${platformsRes.status}, analytics=${analyticsRes.status}`);
+          }
+
+          platforms = await platformsRes.json();
+          analytics = await analyticsRes.json();
+        } catch (error) {
+          console.error('Error fetching data:', error);
+          // Don't redirect on API errors, just show mock data
+          setDataStatus('mock');
+          setLoading(false);
+          return;
+        }
 
       console.log('Platform data received:', platforms);
       console.log('Platform data type:', typeof platforms);
@@ -250,20 +283,36 @@ export default function CreatorDashboard() {
         const hasRealData = platforms.some((platform: PlatformData) => {
           // Check if this is the exact mock data pattern
           const isMockData = (
-            (platform.name === 'YouTube' && platform.subscribers === 125000) ||
-            (platform.name === 'Twitch' && platform.followers === 45000) ||
-            (platform.name === 'TikTok' && platform.followers === 89000)
+            (platform.name === 'YouTube' && platform.subscribers === 125000 && platform.views === 2500000 && platform.revenue === 1200) ||
+            (platform.name === 'Twitch' && platform.followers === 45000 && platform.viewers === 180000 && platform.revenue === 850) ||
+            (platform.name === 'TikTok' && platform.followers === 89000 && platform.views === 1200000 && platform.revenue === 430)
           );
           
-          // If it's not mock data, it's real data (even if values are zero)
-          return !isMockData;
+          // Check if platform has API errors
+          const hasApiError = platform.error && typeof platform.error === 'string';
+          
+          // Check if all values are zero (likely API quota exceeded or no data)
+          const allValuesZero = (
+            (platform.subscribers === 0 || platform.subscribers === undefined) &&
+            (platform.followers === 0 || platform.followers === undefined) &&
+            (platform.views === 0 || platform.views === undefined) &&
+            (platform.viewers === 0 || platform.viewers === undefined) &&
+            (platform.revenue === 0 || platform.revenue === undefined)
+          );
+          
+          // If it's not mock data AND doesn't have API errors AND has some non-zero values, it's real data
+          return !isMockData && !hasApiError && !allValuesZero;
         });
         
         // If user has connected platforms but we're getting mock data, retry once
         if (connectedPlatforms.length > 0 && !hasRealData && !refreshParam.includes('retry')) {
           console.log('Detected mock data for authenticated user, retrying...');
-          // Wait a moment for backend to process, then retry
+          // Wait a moment for backend to process, then retry with retry flag
           setTimeout(() => {
+            // Add retry flag to prevent infinite loops
+            const retryUrl = new URL(window.location.href);
+            retryUrl.searchParams.set('retry', 'true');
+            window.history.replaceState({}, document.title, retryUrl.toString());
             fetchData();
           }, 1000);
           return;
@@ -287,21 +336,15 @@ export default function CreatorDashboard() {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching data:', error);
-      // Retry after a short delay if it's a network error
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        setTimeout(() => {
-          fetchData();
-        }, 1000);
-      } else {
-        setLoading(false);
-        setDataStatus('mock');
-      }
+      // Don't retry automatically to prevent infinite loops
+      setLoading(false);
+      setDataStatus('mock');
     }
     }, [connectedPlatforms]);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, []); // Remove fetchData from dependencies to prevent infinite loops
 
   const getPlatformIcon = (platform: string) => {
     switch (platform.toLowerCase()) {
@@ -315,11 +358,7 @@ export default function CreatorDashboard() {
           <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" fill="#9146FF"/>
         </svg>
       );
-      case 'instagram': return (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" fill="#E4405F"/>
-        </svg>
-      );
+
       case 'tiktok': return (
         <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" fill="#000000"/>
@@ -347,13 +386,18 @@ export default function CreatorDashboard() {
 
   const refreshConnectedPlatforms = async () => {
     try {
-      const response = await fetch('http://localhost:4000/api/auth/me', {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const userData = await response.json();
-        if (userData.user && userData.user.platform) {
-          setConnectedPlatforms(userData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
+      const authToken = localStorage.getItem('authToken');
+      if (authToken) {
+        const response = await fetch('http://localhost:4000/api/auth/status-token', {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        if (response.ok) {
+          const userData = await response.json();
+          if (userData.user && userData.user.platform) {
+            setConnectedPlatforms(userData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
+          }
         }
       }
     } catch (error) {
@@ -375,7 +419,7 @@ export default function CreatorDashboard() {
       <header className="bg-white/80 shadow-lg border-b rounded-b-2xl py-4 px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="relative w-16 h-16">
-            <Image src="/NETWORTHY.png" alt="Networthy Logo" fill className="rounded-full shadow-networthy object-contain bg-networthyYellow p-2" />
+            <Image src="/NETWORTHY.png" alt="Networthy Logo" fill sizes="64px" className="rounded-full shadow-networthy object-contain bg-networthyYellow p-2" />
           </div>
           <h1 className="text-4xl text-black tracking-tight drop-shadow-sm great-vibes-regular">
             Networthy
@@ -407,6 +451,18 @@ export default function CreatorDashboard() {
             </div>
           )}
           <button 
+            onClick={() => {
+              setLoading(true);
+              fetchData();
+            }}
+            className="p-2 text-black hover:text-networthyGreen transition-colors cursor-pointer"
+            title="Refresh Data"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+          <button 
             onClick={() => setShowSettings(true)}
             className="p-2 text-black hover:text-networthyGreen transition-colors cursor-pointer"
           >
@@ -416,19 +472,28 @@ export default function CreatorDashboard() {
             <button 
               onClick={async () => {
                 try {
+                  // Clear local storage first
+                  localStorage.removeItem('authToken');
+                  
+                  // Call logout endpoint
                   await fetch('http://localhost:4000/api/auth/logout', {
                     credentials: 'include'
                   });
+                  
                   // Clear all state
                   setUser(null);
                   setAuthStatus({ authenticated: false, user: null });
                   setConnectedPlatforms([]);
                   setShowSettings(false);
-                  // Force redirect to home page
-                  window.location.href = '/';
+                  
+                  // Small delay then redirect to ensure clean state
+                  setTimeout(() => {
+                    window.location.href = '/';
+                  }, 100);
                 } catch (error) {
                   console.error('Logout error:', error);
                   // Even if logout fails, clear local state and redirect
+                  localStorage.removeItem('authToken');
                   setUser(null);
                   setAuthStatus({ authenticated: false, user: null });
                   setConnectedPlatforms([]);
@@ -444,7 +509,7 @@ export default function CreatorDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Database Connection Warning - Only show when we have connected platforms but still getting mock data */}
+        {/* API Issues Warning - Show when platforms are connected but have API errors or zero data */}
         {dataStatus === 'mock' && connectedPlatforms.length > 0 && (
           <div className="mb-6 p-4 bg-yellow-100 border border-yellow-400 rounded-lg">
             <div className="flex items-center">
@@ -455,13 +520,19 @@ export default function CreatorDashboard() {
               </div>
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-yellow-800">
-                  Database Connection Issue
+                  API Connection Issue
                 </h3>
                 <div className="mt-2 text-sm text-yellow-700">
                   <p>
-                    Your platform is connected but we can&apos;t retrieve your data due to a database connection issue. 
-                    The graphs below show zero values until this is resolved.
+                    Your platforms are connected but we're having trouble fetching data from the APIs. 
+                    This could be due to API quota limits, network issues, or your channels being new with no data yet.
+                    The graphs below show demo data until this is resolved.
                   </p>
+                  {platformData.some(p => p.error) && (
+                    <p className="mt-2 text-xs text-yellow-600">
+                      💡 <strong>Tip:</strong> Some APIs have daily quotas. Try refreshing later or check your platform settings.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -488,6 +559,11 @@ export default function CreatorDashboard() {
                       ? ' Some platforms show zero values because they are new or have no activity yet. This is normal for new channels!' 
                       : ' All data is up to date!'}
                   </p>
+                  {platformData.some(p => p.error) && (
+                    <p className="mt-2 text-xs text-green-600">
+                      ⚠️ <strong>Note:</strong> Some platforms have API errors but we're still showing available data.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -710,9 +786,22 @@ export default function CreatorDashboard() {
                       <span className="text-green-600 text-sm font-medium">Connected</span>
                     ) : (
                       <button
-                        onClick={() => {
-                          // Open OAuth in same window to preserve session
-                          window.location.href = "http://localhost:4000/api/auth/google";
+                        onClick={async () => {
+                          try {
+                            // Get the auth token from localStorage
+                            const authToken = localStorage.getItem('authToken');
+                            
+                            if (!authToken) {
+                              alert('Please refresh the page and make sure you\'re logged in');
+                              return;
+                            }
+                            
+                            // Navigate to OAuth with token
+                            window.location.href = `http://localhost:4000/api/auth/google?token=${encodeURIComponent(authToken)}`;
+                          } catch (error) {
+                            console.error('Auth check failed:', error);
+                            alert('Please refresh the page and try again');
+                          }
                         }}
                         className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                       >
@@ -737,18 +826,16 @@ export default function CreatorDashboard() {
                       <button
                         onClick={async () => {
                           try {
-                            // First, ensure we're authenticated by making a test request
-                            const authCheck = await fetch('http://localhost:4000/api/auth/me', {
-                              credentials: 'include'
-                            });
+                            // Get the auth token from localStorage
+                            const authToken = localStorage.getItem('authToken');
                             
-                            if (!authCheck.ok) {
+                            if (!authToken) {
                               alert('Please refresh the page and make sure you\'re logged in');
                               return;
                             }
                             
-                            // Now navigate to OAuth
-                            window.location.href = "http://localhost:4000/api/auth/twitch";
+                            // Navigate to OAuth with token
+                            window.location.href = `http://localhost:4000/api/auth/twitch?token=${encodeURIComponent(authToken)}`;
                           } catch (error) {
                             console.error('Auth check failed:', error);
                             alert('Please refresh the page and try again');
@@ -775,9 +862,22 @@ export default function CreatorDashboard() {
                       <span className="text-green-600 text-sm font-medium">Connected</span>
                     ) : (
                       <button
-                        onClick={() => {
-                          // Open OAuth in same window to preserve session
-                          window.location.href = "http://localhost:4000/api/auth/tiktok";
+                        onClick={async () => {
+                          try {
+                            // Get the auth token from localStorage
+                            const authToken = localStorage.getItem('authToken');
+                            
+                            if (!authToken) {
+                              alert('Please refresh the page and make sure you\'re logged in');
+                              return;
+                            }
+                            
+                            // Navigate to OAuth with token
+                            window.location.href = `http://localhost:4000/api/auth/tiktok?token=${encodeURIComponent(authToken)}`;
+                          } catch (error) {
+                            console.error('Auth check failed:', error);
+                            alert('Please refresh the page and try again');
+                          }
                         }}
                         className="bg-black hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                       >

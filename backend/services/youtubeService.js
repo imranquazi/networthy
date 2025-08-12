@@ -1,13 +1,15 @@
 import { google } from 'googleapis';
 import axios from 'axios';
+import HistoryService from './historyService.js';
 
 class YouTubeService {
   constructor() {
     this.youtube = google.youtube('v3');
     this.apiKey = process.env.YOUTUBE_API_KEY;
+    this.historyService = new HistoryService();
   }
 
-  async getChannelStats(channelId, accessToken) {
+  async getChannelStats(channelId, accessToken, userId = null) {
     try {
       // Use OAuth2 client if accessToken is provided
       let youtubeClient = this.youtube;
@@ -60,16 +62,32 @@ class YouTubeService {
         }, 0);
       }
 
-      // Calculate estimated revenue (YouTube doesn't provide direct revenue API)
-      // This is a rough estimation based on CPM and views
+      const subscriberCount = parseInt(stats.subscriberCount || 0);
       const estimatedRevenue = this.calculateEstimatedRevenue(totalViews);
+
+      // Store historical data if userId is provided
+      if (userId) {
+        try {
+          await this.historyService.storePlatformMetrics(userId, 'YouTube', channelId, {
+            subscribers: subscriberCount,
+            views: totalViews
+          });
+        } catch (error) {
+          console.error('Error storing YouTube historical data:', error);
+        }
+      }
+
+      // Calculate growth rate using historical data
+      const growthRate = userId ? 
+        await this.historyService.calculateGrowthRate(userId, 'YouTube', channelId, 'subscribers', subscriberCount) :
+        0;
 
       return {
         name: 'YouTube',
-        subscribers: parseInt(stats.subscriberCount || 0),
+        subscribers: subscriberCount,
         views: totalViews,
         revenue: estimatedRevenue,
-        growth: this.calculateGrowthRate(stats.subscriberCount),
+        growth: growthRate,
         channelId: channelId,
         channelName: snippet.title,
         thumbnail: snippet.thumbnails.default.url
@@ -86,11 +104,7 @@ class YouTubeService {
     return Math.round((views / 1000) * cpm);
   }
 
-  calculateGrowthRate(subscriberCount) {
-    // This would need historical data for accurate calculation
-    // For now, return a placeholder growth rate
-    return Math.random() * 20 + 5; // 5-25% growth
-  }
+
 
   async getChannelIdFromUsername(username) {
     try {

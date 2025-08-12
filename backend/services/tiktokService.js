@@ -1,4 +1,5 @@
 import axios from 'axios';
+import HistoryService from './historyService.js';
 
 class TikTokService {
   constructor() {
@@ -6,6 +7,7 @@ class TikTokService {
     this.clientSecret = process.env.TIKTOK_CLIENT_SECRET;
     this.accessToken = null;
     this.tokenExpiry = null;
+    this.historyService = new HistoryService();
   }
 
   async authenticate() {
@@ -40,7 +42,7 @@ class TikTokService {
     }
   }
 
-  async getCreatorStats(username) {
+  async getCreatorStats(username, userId = null) {
     try {
       const token = await this.authenticate();
 
@@ -72,16 +74,33 @@ class TikTokService {
       const totalViews = videos.reduce((sum, video) => sum + (parseInt(video.stats.view_count) || 0), 0);
       const totalLikes = videos.reduce((sum, video) => sum + (parseInt(video.stats.like_count) || 0), 0);
 
-      // Calculate estimated revenue (TikTok doesn't provide direct revenue API)
-      const estimatedRevenue = this.calculateEstimatedRevenue(user.follower_count, totalViews);
+      const followerCount = parseInt(user.follower_count || 0);
+      const estimatedRevenue = this.calculateEstimatedRevenue(followerCount, totalViews);
+
+      // Store historical data if userId is provided
+      if (userId) {
+        try {
+          await this.historyService.storePlatformMetrics(userId, 'TikTok', user.open_id, {
+            followers: followerCount,
+            views: totalViews
+          });
+        } catch (error) {
+          console.error('Error storing TikTok historical data:', error);
+        }
+      }
+
+      // Calculate growth rate using historical data
+      const growthRate = userId ? 
+        await this.historyService.calculateGrowthRate(userId, 'TikTok', user.open_id, 'followers', followerCount) :
+        0;
 
       return {
         name: 'TikTok',
-        followers: parseInt(user.follower_count || 0),
+        followers: followerCount,
         views: totalViews,
         likes: totalLikes,
         revenue: estimatedRevenue,
-        growth: this.calculateGrowthRate(user.follower_count),
+        growth: growthRate,
         channelId: user.open_id,
         channelName: user.display_name,
         thumbnail: user.avatar_url,
@@ -101,11 +120,7 @@ class TikTokService {
     return Math.round(followerRevenue + viewRevenue);
   }
 
-  calculateGrowthRate(followers) {
-    // This would need historical data for accurate calculation
-    // For now, return a placeholder growth rate
-    return Math.random() * 25 + 8; // 8-33% growth
-  }
+
 
   async getCreatorIdFromUsername(username) {
     try {

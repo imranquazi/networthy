@@ -1,4 +1,5 @@
 import axios from 'axios';
+import HistoryService from './historyService.js';
 
 class TwitchService {
   constructor() {
@@ -6,6 +7,7 @@ class TwitchService {
     this.clientSecret = process.env.TWITCH_CLIENT_SECRET;
     this.accessToken = null;
     this.tokenExpiry = null;
+    this.historyService = new HistoryService();
   }
 
   async authenticate() {
@@ -37,7 +39,7 @@ class TwitchService {
     }
   }
 
-  async getChannelStats(username, accessToken) {
+  async getChannelStats(username, accessToken, userId = null) {
     try {
       let token;
       let clientId = this.clientId;
@@ -78,12 +80,29 @@ class TwitchService {
         // Calculate estimated revenue
         const estimatedRevenue = this.calculateEstimatedRevenue(followers, viewers);
         
+        // Store historical data if userId is provided
+        if (userId) {
+          try {
+            await this.historyService.storePlatformMetrics(userId, 'Twitch', user.id, {
+              followers: followers,
+              viewers: viewers
+            });
+          } catch (error) {
+            console.error('Error storing Twitch historical data:', error);
+          }
+        }
+
+        // Calculate growth rate using historical data
+        const growthRate = userId ? 
+          await this.historyService.calculateGrowthRate(userId, 'Twitch', user.id, 'followers', followers) :
+          0;
+        
         return {
           name: 'Twitch',
           followers: followers,
           viewers: viewers,
           revenue: estimatedRevenue,
-          growth: this.calculateGrowthRate(followers),
+          growth: growthRate,
           channelId: user.id,
           channelName: user.display_name,
           thumbnail: user.profile_image_url,
@@ -126,12 +145,29 @@ class TwitchService {
         // Calculate estimated revenue
         const estimatedRevenue = this.calculateEstimatedRevenue(followers, viewers);
 
+        // Store historical data if userId is provided
+        if (userId) {
+          try {
+            await this.historyService.storePlatformMetrics(userId, 'Twitch', user.id, {
+              followers: followers,
+              viewers: viewers
+            });
+          } catch (error) {
+            console.error('Error storing Twitch historical data:', error);
+          }
+        }
+
+        // Calculate growth rate using historical data
+        const growthRate = userId ? 
+          await this.historyService.calculateGrowthRate(userId, 'Twitch', user.id, 'followers', followers) :
+          0;
+
         return {
           name: 'Twitch',
           followers: followers,
           viewers: viewers,
           revenue: estimatedRevenue,
-          growth: this.calculateGrowthRate(followers),
+          growth: growthRate,
           channelId: user.id,
           channelName: user.display_name,
           thumbnail: user.profile_image_url,
@@ -152,11 +188,7 @@ class TwitchService {
     return Math.round(followerRevenue + viewerRevenue);
   }
 
-  calculateGrowthRate(followers) {
-    // This would need historical data for accurate calculation
-    // For now, return a placeholder growth rate
-    return Math.random() * 15 + 3; // 3-18% growth
-  }
+
 
   async getChannelIdFromUsername(username) {
     try {

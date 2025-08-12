@@ -18,7 +18,7 @@ export default function HomePage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Try token-based auth first
+        // Use token-based auth only
         const token = localStorage.getItem('authToken');
         if (token) {
           try {
@@ -33,27 +33,18 @@ export default function HomePage() {
               setAuthStatus({ authenticated: true, user: data.user });
               return;
             }
-          } catch {
-            console.log('Token auth failed, trying session auth...');
+          } catch (error) {
+            console.log('Token auth failed:', error);
           }
         }
         
-        // Fallback to session-based auth
-        const response = await fetch('http://localhost:4000/api/auth/me', {
-          credentials: 'include',
-          cache: 'no-cache' // Force fresh request
-        });
-        const data = await response.json();
-        
-        if (response.ok) {
-          setAuthStatus({ authenticated: true, user: data.user });
-        } else {
-          setAuthStatus({ authenticated: false });
-        }
+        // No valid token found
+        setAuthStatus({ authenticated: false });
+        localStorage.removeItem('authToken');
       } catch (error) {
         console.error('Auth check failed:', error);
-        // Don't retry on network errors, just show unauthenticated state
         setAuthStatus({ authenticated: false });
+        localStorage.removeItem('authToken');
       }
     };
 
@@ -70,7 +61,7 @@ export default function HomePage() {
       <header className="bg-white/80 shadow-lg border-b rounded-b-2xl py-4 px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="relative w-16 h-16">
-            <Image src="/NETWORTHY.png" alt="Networthy Logo" fill className="rounded-full shadow-networthy object-contain bg-networthyYellow p-2" />
+            <Image src="/NETWORTHY.png" alt="Networthy Logo" fill sizes="64px" className="rounded-full shadow-networthy object-contain bg-networthyYellow p-2" />
           </div>
           <h1 className="text-4xl text-black tracking-tight drop-shadow-sm great-vibes-regular">
             Networthy
@@ -88,14 +79,19 @@ export default function HomePage() {
                   <button 
                     onClick={async () => {
                       try {
-                        await fetch('http://localhost:4000/api/auth/logout', {
-                          credentials: 'include'
-                        });
-                        // Force page reload to clear all state
-                        window.location.reload();
+                        // Clear local storage and state immediately
+                        localStorage.removeItem('authToken');
+                        setAuthStatus({ authenticated: false });
+                        
+                        // Small delay then reload to ensure clean state
+                        setTimeout(() => {
+                          window.location.reload();
+                        }, 100);
                       } catch (error) {
                         console.error('Logout error:', error);
-                        // Force reload anyway
+                        // Clear local state and reload anyway
+                        setAuthStatus({ authenticated: false });
+                        localStorage.removeItem('authToken');
                         window.location.reload();
                       }
                     }}
@@ -140,7 +136,7 @@ export default function HomePage() {
             </div>
             <h3 className="text-xl font-semibold text-black mb-3">Revenue Tracking</h3>
             <p className="text-gray-600">
-              Monitor your earnings across YouTube, Twitch, Instagram, TikTok, and more in one unified dashboard.
+              Monitor your earnings across YouTube, Twitch, TikTok, and more in one unified dashboard.
             </p>
           </div>
 
@@ -187,7 +183,7 @@ export default function HomePage() {
               </div>
               <h3 className="text-xl font-semibold text-black mb-3">Connect Your Platforms</h3>
               <p className="text-gray-600">
-                Link your YouTube, Twitch, Instagram, TikTok, and other creator accounts to start tracking.
+                Link your YouTube, Twitch, TikTok, and other creator accounts to start tracking.
               </p>
             </div>
             <div className="text-center">

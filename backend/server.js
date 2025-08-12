@@ -29,11 +29,13 @@ const app = express();
 app.use(helmet());
 app.use(compression());
 
-// Rate limiting
+// Rate limiting - more lenient in development
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: process.env.NODE_ENV === 'development' ? 1000 : (parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100), // More lenient in development
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
@@ -62,11 +64,44 @@ passport.deserializeUser((user, done) => {
 
 setupTwitchPassport();
 
+// CORS configuration - more flexible for development
 app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost origins
+    if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
+      return callback(null, true);
+    }
+    
+    // Allow specific production domain if set
+    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
+      return callback(null, true);
+    }
+    
+    // Allow all origins in development
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma'],
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
 }));
 app.use(express.json());
+
+// Handle preflight requests for all API routes
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:3000');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(200).end();
+});
 
 // Persistent manual revenue overrides
 let manualRevenueOverrides = {};
@@ -99,37 +134,63 @@ let connectedPlatforms = [
   // { name: 'instagram', identifier: 'cristiano' }
 ];
 
-// Cache for platform data
-let platformDataCache = [
+// User-specific cache for platform data
+const userPlatformCache = new Map();
+const userAnalyticsCache = new Map();
+const userLastUpdate = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Default mock data for unauthenticated users
+const defaultMockData = [
   { name: "YouTube", subscribers: 125000, views: 2500000, revenue: 1200, growth: 12.5 },
   { name: "Twitch", followers: 45000, viewers: 180000, revenue: 850, growth: 8.2 },
-  { name: "TikTok", followers: 89000, views: 1200000, revenue: 430, growth: 15.7 },
-  { name: "Instagram", followers: 67000, engagement: 4.2, revenue: 320, growth: 6.8 }
+  { name: "TikTok", followers: 89000, views: 1200000, revenue: 430, growth: 15.7 }
 ];
-let analyticsDataCache = null;
-let lastUpdate = Date.now();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // -------------------- Helper Functions --------------------
 
-async function updatePlatformData() {
+async function updatePlatformData(userId = null) {
   try {
-    if (connectedPlatforms.length === 0) {
+    let userConnectedPlatforms = [];
+    
+    // If userId is provided, get the user's connected platforms from database
+    if (userId) {
+      try {
+        const user = await findUserById(userId);
+        if (user && user.connected_platforms) {
+          userConnectedPlatforms = user.connected_platforms;
+        }
+      } catch (error) {
+        console.error('Error getting user platforms:', error);
+      }
+    }
+    
+    // Use user's connected platforms if available, otherwise fall back to global connectedPlatforms
+    const platformsToUse = userConnectedPlatforms.length > 0 ? userConnectedPlatforms : connectedPlatforms;
+    
+    if (platformsToUse.length === 0) {
       // Return mock data if no platforms are connected
-      platformDataCache = [
+      const mockData = [
         { name: "YouTube", subscribers: 125000, views: 2500000, revenue: 1200, growth: 12.5 },
         { name: "Twitch", followers: 45000, viewers: 180000, revenue: 850, growth: 8.2 },
-        { name: "TikTok", followers: 89000, views: 1200000, revenue: 430, growth: 15.7 },
-        { name: "Instagram", followers: 67000, engagement: 4.2, revenue: 320, growth: 6.8 }
+        { name: "TikTok", followers: 89000, views: 1200000, revenue: 430, growth: 15.7 }
       ];
-      lastUpdate = Date.now();
+      
+      if (userId) {
+        userPlatformCache.set(userId, mockData);
+        userLastUpdate.set(userId, Date.now());
+      }
       return;
     }
 
     console.log('🔄 Updating platform data from APIs...');
-    const platformStats = await platformManager.getAllPlatformStats(connectedPlatforms);
-    platformDataCache = platformStats;
-    lastUpdate = Date.now();
+    console.log('User connected platforms length:', platformsToUse.length);
+    const platformStats = await platformManager.getAllPlatformStats(platformsToUse, userId);
+    
+    if (userId) {
+      userPlatformCache.set(userId, platformStats);
+      userLastUpdate.set(userId, Date.now());
+    }
     console.log('✅ Platform data updated successfully');
   } catch (error) {
     console.error('❌ Error updating platform data:', error.message);
@@ -137,20 +198,30 @@ async function updatePlatformData() {
   }
 }
 
-async function updateAnalyticsData() {
+async function updateAnalyticsData(userId = null) {
   try {
-    if (platformDataCache.length === 0) {
-      analyticsDataCache = {
+    const userPlatformData = userId ? userPlatformCache.get(userId) : null;
+    
+    if (!userPlatformData || userPlatformData.length === 0) {
+      const emptyAnalytics = {
         totalRevenue: 0,
         totalGrowth: 0,
         topPlatform: "None",
         monthlyTrend: [0, 0, 0, 0, 0, 0],
         platformBreakdown: []
       };
+      
+      if (userId) {
+        userAnalyticsCache.set(userId, emptyAnalytics);
+      }
       return;
     }
 
-    analyticsDataCache = await platformManager.calculateAnalytics(platformDataCache);
+    const analytics = await platformManager.calculateAnalytics(userPlatformData, userId);
+    
+    if (userId) {
+      userAnalyticsCache.set(userId, analytics);
+    }
   } catch (error) {
     console.error('❌ Error updating analytics:', error.message);
   }
@@ -192,6 +263,15 @@ app.post("/api/auth/register", async (req, res) => {
     }
     res.status(500).json({ error: 'Registration failed' });
   }
+});
+
+// Handle preflight requests for login
+app.options("/api/auth/login", (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:3000');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(200).end();
 });
 
 // User login
@@ -266,7 +346,7 @@ app.get("/api/auth/status", (req, res) => {
     authenticated: req.session.authenticated || false,
     user: req.session.user || null,
     connectedPlatforms: connectedPlatforms.length,
-    lastUpdate: lastUpdate
+    lastUpdate: Date.now()
   });
 });
 
@@ -335,17 +415,71 @@ app.get("/api/auth/logout", (req, res) => {
 });
 
 // Google OAuth (YouTube)
-app.get("/api/auth/google", (req, res) => {
+app.get("/api/auth/google", async (req, res) => {
+  // Check if user is authenticated via session or token
+  let userEmail = null;
+  let userId = null;
+  
+  // First try session-based authentication
+  if (req.session.authenticated && req.session.user) {
+    userEmail = req.session.user.email;
+    userId = req.session.user.id;
+  } else {
+    // Try token-based authentication
+    const authHeader = req.headers.authorization;
+    const tokenParam = req.query.token;
+    
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (tokenParam) {
+      token = tokenParam;
+    }
+    
+    if (token) {
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const [email, timestamp] = decoded.split(':');
+        
+        // Check if token is not expired (24 hours)
+        const tokenTime = parseInt(timestamp);
+        const currentTime = Date.now();
+        if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+          userEmail = email;
+          // Find user ID from database
+          const user = await findUserByEmail(email);
+          if (user) {
+            userId = user.id;
+          }
+        }
+      } catch (decodeError) {
+        console.error('Token decode error:', decodeError);
+      }
+    }
+  }
+  
+  if (!userEmail || !userId) {
+    return res.redirect('http://localhost:3000/login?error=not_logged_in');
+  }
+  
+  // Store the user's info in a state parameter
+  const state = Buffer.from(JSON.stringify({
+    userId: userId,
+    email: userEmail,
+    timestamp: Date.now()
+  })).toString('base64');
+  
   const url = googleClient.generateAuthUrl({
     access_type: "offline",
     scope: ["https://www.googleapis.com/auth/youtube.readonly", "email", "profile"],
-    prompt: "consent"
+    prompt: "consent",
+    state: state
   });
   res.redirect(url);
 });
 
 app.get("/api/auth/google/callback", async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
   try {
     const { tokens } = await googleClient.getToken(code);
     googleClient.setCredentials(tokens);
@@ -354,13 +488,24 @@ app.get("/api/auth/google/callback", async (req, res) => {
     const userinfo = await oauth2.request({ url: 'https://www.googleapis.com/oauth2/v2/userinfo' });
     const email = userinfo.data.email;
     
-    // Check if user is logged in
-    if (!req.session.authenticated) {
-      return res.redirect('http://localhost:3000/login?error=not_logged_in');
+    // Get user info from state parameter instead of session
+    let userInfo;
+    try {
+      if (state) {
+        const decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+        userInfo = decodedState;
+        console.log('Google OAuth state decoded:', userInfo);
+      } else {
+        console.error('No state parameter in Google OAuth callback');
+        return res.redirect('http://localhost:3000/login?error=google_oauth_failed');
+      }
+    } catch (stateError) {
+      console.error('Error decoding Google OAuth state:', stateError);
+      return res.redirect('http://localhost:3000/login?error=google_oauth_failed');
     }
     
-    // Store token for the logged-in user
-    await storeToken(req.session.user.email, 'youtube', tokens);
+    // Store token for the user from state parameter
+    await storeToken(userInfo.email, 'youtube', tokens);
     
     // Get user's YouTube channel info
     const youtubeClient = google.youtube({ version: 'v3', auth: googleClient });
@@ -373,7 +518,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
     const channelTitle = channelsResponse.data.items?.[0]?.snippet?.title;
     
     // Add platform to user's connected platforms
-    const user = await findUserByEmail(req.session.user.email);
+    const user = await findUserByEmail(userInfo.email);
     if (user) {
       const connectedPlatforms = user.connected_platforms || [];
       if (!connectedPlatforms.find(p => p.name === 'youtube')) {
@@ -388,10 +533,11 @@ app.get("/api/auth/google/callback", async (req, res) => {
     }
     
     // Update platform data immediately
-    await updatePlatformData();
+    await updatePlatformData(user.id);
+    await updateAnalyticsData(user.id);
     
     // Redirect to frontend dashboard
-    res.redirect('http://localhost:3000/dashboard?platform=youtube&email=' + encodeURIComponent(email));
+    res.redirect('http://localhost:3000/dashboard?platform=youtube&email=' + encodeURIComponent(userInfo.email));
   } catch (err) {
     console.error('Google OAuth error:', err);
     res.redirect('http://localhost:3000/login?error=google_oauth_failed');
@@ -482,7 +628,8 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
     console.log('User connected platforms after Twitch:', user && user.connected_platforms);
     
     // Update platform data immediately
-    await updatePlatformData();
+    await updatePlatformData(user.id);
+    await updateAnalyticsData(user.id);
     
     console.log('Redirecting to dashboard with Twitch data');
     // Redirect to frontend dashboard
@@ -532,7 +679,8 @@ app.get("/api/auth/tiktok/callback", async (req, res) => {
     }
     
     // Update platform data immediately
-    await updatePlatformData();
+    await updatePlatformData(user.id);
+    await updateAnalyticsData(user.id);
     
     // Redirect to frontend dashboard
     res.redirect('http://localhost:3000/dashboard?platform=tiktok&email=' + encodeURIComponent(req.session.user.email));
@@ -545,13 +693,15 @@ app.get("/api/auth/tiktok/callback", async (req, res) => {
 // Platform Management
 app.get("/api/platforms", async (req, res) => {
   let userConnectedPlatforms = [];
+  let user = null;
   try {
     // If user is authenticated, fetch their tokens
     let userTokens = {};
     
+    // First try session-based authentication
     if (req.session && req.session.user && req.session.user.email) {
       console.log('Session user:', req.session.user);
-      const user = await findUserByEmail(req.session.user.email);
+      user = await findUserByEmail(req.session.user.email);
       console.log('Found user:', user ? user.email : 'not found');
       if (user) {
         userConnectedPlatforms = user.connected_platforms || [];
@@ -569,12 +719,61 @@ app.get("/api/platforms", async (req, res) => {
       if (tiktokToken) userTokens.tiktok = tiktokToken;
       
       console.log('User tokens found:', Object.keys(userTokens));
+    } else {
+      // Try token-based authentication
+      const authHeader = req.headers.authorization;
+      const tokenParam = req.query.token;
+      
+      let token = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      } else if (tokenParam) {
+        token = tokenParam;
+      }
+      
+      if (token) {
+        try {
+          const decoded = Buffer.from(token, 'base64').toString('utf-8');
+          const [email, timestamp] = decoded.split(':');
+          
+          // Check if token is not expired (24 hours)
+          const tokenTime = parseInt(timestamp);
+          const currentTime = Date.now();
+          if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+            user = await findUserByEmail(email);
+            console.log('Token user:', user ? user.email : 'not found');
+            if (user) {
+              userConnectedPlatforms = user.connected_platforms || [];
+              console.log('User connected platforms:', userConnectedPlatforms);
+              
+              const [youtubeToken, twitchToken, tiktokToken] = await Promise.all([
+                getToken(email, 'youtube').catch(() => null),
+                getToken(email, 'twitch').catch(() => null),
+                getToken(email, 'tiktok').catch(() => null)
+              ]);
+              
+              if (youtubeToken) userTokens.youtube = youtubeToken;
+              if (twitchToken) userTokens.twitch = twitchToken;
+              if (tiktokToken) userTokens.tiktok = tiktokToken;
+              
+              console.log('User tokens found:', Object.keys(userTokens));
+            }
+          }
+        } catch (decodeError) {
+          console.error('Token decode error:', decodeError);
+        }
+      }
     }
 
+    // Get user-specific cache data
+    const userId = user ? user.id : null;
+    const userCacheKey = userId || 'anonymous';
+    
     // Check if cache is stale or if user has connected platforms (force refresh)
     const forceRefresh = req.query.refresh === 'true';
-    const shouldRefresh = !lastUpdate || 
-                         Date.now() - lastUpdate > CACHE_DURATION ||
+    const userLastUpdateTime = userLastUpdate.get(userCacheKey) || 0;
+    const shouldRefresh = !userLastUpdateTime || 
+                         Date.now() - userLastUpdateTime > CACHE_DURATION ||
                          userConnectedPlatforms.length > 0 ||
                          forceRefresh;
     
@@ -599,30 +798,74 @@ app.get("/api/platforms", async (req, res) => {
       }
       
       if (platformsWithTokens.length > 0) {
-        // Get stats for platforms with user tokens
-        const authenticatedStats = await Promise.all(
+        // Get stats for platforms with user tokens - handle API quota errors gracefully
+        const authenticatedStats = await Promise.allSettled(
           platformsWithTokens.map(async (platform) => {
             const platformName = platform.name.toLowerCase();
-            if (platformName === 'youtube') {
-              return await platformManager.services.youtube.getChannelStats(platform.identifier, platform.token.access_token);
-            } else if (platformName === 'twitch') {
-              return await platformManager.services.twitch.getChannelStats(platform.identifier, platform.token.accessToken);
-            } else if (platformName === 'tiktok') {
-              return await platformManager.services.tiktok.getCreatorStats(platform.identifier, platform.token.access_token);
+            try {
+              if (platformName === 'youtube') {
+                return await platformManager.services.youtube.getChannelStats(platform.identifier, platform.token.access_token, user.id);
+              } else if (platformName === 'twitch') {
+                return await platformManager.services.twitch.getChannelStats(platform.identifier, platform.token.accessToken, user.id);
+              } else if (platformName === 'tiktok') {
+                return await platformManager.services.tiktok.getCreatorStats(platform.identifier, user.id);
+              }
+            } catch (error) {
+              console.error(`Error fetching ${platformName} data:`, error.message);
+              // Return empty data for this platform if API fails
+              return {
+                name: platform.name,
+                subscribers: 0,
+                followers: 0,
+                views: 0,
+                viewers: 0,
+                revenue: 0,
+                growth: 0,
+                channelId: platform.identifier,
+                channelName: platform.title || platform.name,
+                error: error.message
+              };
             }
           })
         );
         
+        // Extract successful results and handle failed ones
+        const successfulStats = authenticatedStats
+          .filter(result => result.status === 'fulfilled')
+          .map(result => result.value);
+        
+        const failedStats = authenticatedStats
+          .filter(result => result.status === 'rejected')
+          .map((result, index) => {
+            const platform = platformsWithTokens[index];
+            return {
+              name: platform.name,
+              subscribers: 0,
+              followers: 0,
+              views: 0,
+              viewers: 0,
+              revenue: 0,
+              growth: 0,
+              channelId: platform.identifier,
+              channelName: platform.title || platform.name,
+              error: result.reason?.message || 'API request failed'
+            };
+          });
+        
+        const allStats = [...successfulStats, ...failedStats];
+        
         // Get stats for platforms without tokens
         const otherStats = platformsWithoutTokens.length > 0 
-          ? await platformManager.getAllPlatformStats(platformsWithoutTokens)
+          ? await platformManager.getAllPlatformStats(platformsWithoutTokens, user.id)
           : [];
         
-        platformDataCache = [...authenticatedStats, ...otherStats];
-        lastUpdate = Date.now();
+        const newData = [...allStats, ...otherStats];
+        userPlatformCache.set(userCacheKey, newData);
+        userLastUpdate.set(userCacheKey, Date.now());
+        console.log('Updated user cache with authenticated data:', newData);
       } else if (userConnectedPlatforms.length > 0) {
         // User has connected platforms but no tokens yet - return empty data for those platforms
-        platformDataCache = userConnectedPlatforms.map(platform => ({
+        const emptyData = userConnectedPlatforms.map(platform => ({
           name: platform.name,
           subscribers: 0,
           followers: 0,
@@ -631,24 +874,35 @@ app.get("/api/platforms", async (req, res) => {
           revenue: 0,
           growth: 0
         }));
-        lastUpdate = Date.now();
-        console.log('Returning empty data for connected platforms without tokens:', platformDataCache);
+        userPlatformCache.set(userCacheKey, emptyData);
+        userLastUpdate.set(userCacheKey, Date.now());
+        console.log('Updated user cache with empty data for connected platforms:', emptyData);
       } else {
         // No user platforms connected - use mock data
-        await updatePlatformData();
+        await updatePlatformData(userId);
       }
     }
+    
+    // Get data from user-specific cache
+    let data = userPlatformCache.get(userCacheKey);
+    
+    // If no cached data, use default mock data for unauthenticated users
+    if (!data) {
+      data = defaultMockData;
+    }
+    
     // Inject manual revenue overrides
-    const data = platformDataCache.map(platform => {
+    data = data.map(platform => {
       if (manualRevenueOverrides[platform.name]) {
         return { ...platform, revenue: manualRevenueOverrides[platform.name] };
       }
       return platform;
     });
-    console.log('Returning platform data:', data);
+    
+    console.log('Returning platform data for user:', userCacheKey, data);
     res.json(data);
-      } catch (error) {
-      console.error('Error fetching platforms:', error);
+  } catch (error) {
+    console.error('Error fetching platforms:', error);
       console.log('User connected platforms in catch:', userConnectedPlatforms);
       // Always return an array for the frontend
       if (userConnectedPlatforms && userConnectedPlatforms.length > 0) {
@@ -664,9 +918,10 @@ app.get("/api/platforms", async (req, res) => {
         console.log('Returning empty data due to error:', emptyData);
         res.json(emptyData);
       } else {
-        res.json([]);
+        // Return default mock data for unauthenticated users
+        res.json(defaultMockData);
       }
-    }
+  }
 });
 
 app.post("/api/platforms", async (req, res) => {
@@ -699,7 +954,7 @@ app.post("/api/platforms", async (req, res) => {
     res.json({ 
       success: true, 
       message: `${name} platform connected successfully`,
-      data: platformDataCache 
+      data: "Platform connected successfully" 
     });
   } catch (error) {
     console.error('Error adding platform:', error);
@@ -735,10 +990,13 @@ app.post("/api/platforms/:name/revenue", async (req, res) => {
     }
     manualRevenueOverrides[name] = revenue;
     saveManualRevenueOverrides();
-    // Update cache immediately
-    platformDataCache = platformDataCache.map(platform =>
-      platform.name === name ? { ...platform, revenue } : platform
-    );
+    // Update cache immediately for all users
+    for (const [userKey, userData] of userPlatformCache.entries()) {
+      const updatedData = userData.map(platform =>
+        platform.name === name ? { ...platform, revenue } : platform
+      );
+      userPlatformCache.set(userKey, updatedData);
+    }
     await updateAnalyticsData();
     res.json({ success: true, revenue });
   } catch (error) {
@@ -750,76 +1008,76 @@ app.post("/api/platforms/:name/revenue", async (req, res) => {
 // Analytics
 app.get("/api/analytics", async (req, res) => {
   try {
-    // Get the same data that the /api/platforms endpoint would return
-    let platformData = [];
+    // Get user authentication (session or token-based)
+    let user = null;
     let userConnectedPlatforms = [];
     
-    // Get user's connected platforms if authenticated
+    // Try session-based authentication first
     if (req.session && req.session.user && req.session.user.email) {
-      const user = await findUserByEmail(req.session.user.email);
+      user = await findUserByEmail(req.session.user.email);
       if (user) {
         userConnectedPlatforms = user.connected_platforms || [];
       }
-    }
-    
-    // If user has connected platforms but API calls are failing, use empty data
-    if (userConnectedPlatforms.length > 0) {
-      // Check if we have real data or if APIs are failing
-      try {
-        // Try to get fresh data
-        const [youtubeToken, twitchToken, tiktokToken] = await Promise.all([
-          getToken(req.session.user.email, 'youtube').catch(() => null),
-          getToken(req.session.user.email, 'twitch').catch(() => null),
-          getToken(req.session.user.email, 'tiktok').catch(() => null)
-        ]);
-        
-        let hasRealData = false;
-        const platformsWithTokens = [];
-        
-        for (const platform of userConnectedPlatforms) {
-          const platformName = platform.name.toLowerCase();
-          if ((platformName === 'youtube' && youtubeToken) || 
-              (platformName === 'twitch' && twitchToken) || 
-              (platformName === 'tiktok' && tiktokToken)) {
-            platformsWithTokens.push(platform);
-            hasRealData = true;
-          }
-        }
-        
-        if (hasRealData) {
-          // Use the actual platform data cache if we have real data
-          platformData = platformDataCache;
-        } else {
-          // No tokens - return empty data for connected platforms
-          platformData = userConnectedPlatforms.map(platform => ({
-            name: platform.name,
-            subscribers: 0,
-            followers: 0,
-            views: 0,
-            viewers: 0,
-            revenue: 0,
-            growth: 0
-          }));
-        }
-      } catch (error) {
-        // API calls failed - return empty data for connected platforms
-        platformData = userConnectedPlatforms.map(platform => ({
-          name: platform.name,
-          subscribers: 0,
-          followers: 0,
-          views: 0,
-          viewers: 0,
-          revenue: 0,
-          growth: 0
-        }));
-      }
     } else {
-      // No connected platforms - use mock data
-      platformData = platformDataCache;
+      // Try token-based authentication
+      const authHeader = req.headers.authorization;
+      const tokenParam = req.query.token;
+      
+      let token = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      } else if (tokenParam) {
+        token = tokenParam;
+      }
+      
+      if (token) {
+        try {
+          const decoded = Buffer.from(token, 'base64').toString('utf-8');
+          const [email, timestamp] = decoded.split(':');
+          
+          const tokenTime = parseInt(timestamp);
+          const currentTime = Date.now();
+          if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+            user = await findUserByEmail(email);
+            if (user) {
+              userConnectedPlatforms = user.connected_platforms || [];
+            }
+          }
+        } catch (decodeError) {
+          console.error('Token decode error:', decodeError);
+        }
+      }
     }
     
-    // Calculate analytics based on the actual data being shown
-    const analytics = await platformManager.calculateAnalytics(platformData);
+    // Get user-specific cache data
+    const userId = user ? user.id : null;
+    const userCacheKey = userId || 'anonymous';
+    
+    // Get platform data from user-specific cache
+    let platformData = userPlatformCache.get(userCacheKey);
+    
+    // If no cached data, fetch it using the same logic as the platforms endpoint
+    if (!platformData) {
+      // Use the same logic as the platforms endpoint
+      if (userConnectedPlatforms.length > 0) {
+        // User has connected platforms, fetch real data
+        try {
+          platformData = await platformManager.getAllPlatformStats(userConnectedPlatforms, userId);
+          // Cache the result
+          userPlatformCache.set(userCacheKey, platformData);
+          userLastUpdate.set(userCacheKey, Date.now());
+        } catch (error) {
+          console.error('Error fetching platform data for analytics:', error);
+          platformData = defaultMockData;
+        }
+      } else {
+        // No connected platforms, use default mock data
+        platformData = defaultMockData;
+      }
+    }
+    
+    // Calculate analytics based on the platform data
+    const analytics = await platformManager.calculateAnalytics(platformData, userId);
     
     res.json(analytics);
   } catch (error) {
@@ -864,6 +1122,82 @@ app.get("/api/platforms/:name/stats", async (req, res) => {
   }
 });
 
+// Server-Sent Events (SSE) endpoint for real-time updates
+app.get("/api/websocket", async (req, res) => {
+  try {
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': req.headers.origin || 'http://localhost:3000',
+      'Access-Control-Allow-Credentials': 'true'
+    });
+
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: Date.now() })}\n\n`);
+
+    // Handle authentication
+    let user = null;
+    const authHeader = req.headers.authorization;
+    const tokenParam = req.query.token;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const [email, timestamp] = decoded.split(':');
+        const tokenTime = parseInt(timestamp);
+        const currentTime = Date.now();
+        if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+          user = await findUserByEmail(email);
+        }
+      } catch (error) {
+        console.log('Token decode error in SSE:', error);
+      }
+    } else if (tokenParam) {
+      try {
+        const decoded = Buffer.from(tokenParam, 'base64').toString('utf-8');
+        const [email, timestamp] = decoded.split(':');
+        const tokenTime = parseInt(timestamp);
+        const currentTime = Date.now();
+        if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+          user = await findUserByEmail(email);
+        }
+      } catch (error) {
+        console.log('Token param decode error in SSE:', error);
+      }
+    }
+
+    // Send user status
+    res.write(`data: ${JSON.stringify({ 
+      type: 'auth_status', 
+      authenticated: !!user,
+      user: user ? { email: user.email, id: user.id } : null,
+      timestamp: Date.now()
+    })}\n\n`);
+
+    // Keep connection alive with periodic heartbeats
+    const heartbeat = setInterval(() => {
+      res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: Date.now() })}\n\n`);
+    }, 30000); // Every 30 seconds
+
+    // Handle client disconnect
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      // Only log in development to reduce noise
+      if (process.env.NODE_ENV === 'development') {
+        console.log('SSE client disconnected');
+      }
+    });
+
+  } catch (error) {
+    console.error('SSE error:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'SSE connection failed' })}\n\n`);
+    res.end();
+  }
+});
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({
@@ -871,7 +1205,7 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date().toISOString(),
     connectedPlatforms: connectedPlatforms.length,
     cacheStats: platformManager.getCacheStats(),
-    lastUpdate: lastUpdate
+    lastUpdate: Date.now()
   });
 });
 
@@ -892,3 +1226,4 @@ app.listen(PORT, () => {
   console.log(`📊 Connected platforms: ${connectedPlatforms.length}`);
   console.log(`⏰ Data refresh scheduled every 5 minutes`);
 });
+
