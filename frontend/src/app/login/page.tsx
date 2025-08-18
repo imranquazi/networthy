@@ -2,6 +2,11 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft } from 'lucide-react';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(true);
@@ -11,10 +16,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Check if user is already authenticated
     const checkAuth = async () => {
       try {
-        // Try token-based auth first
         const token = localStorage.getItem('authToken');
         if (token) {
           try {
@@ -26,7 +29,6 @@ export default function LoginPage() {
             const data = await response.json();
             
             if (data.authenticated) {
-              // User is already logged in, redirect to dashboard
               window.location.href = '/dashboard';
               return;
             }
@@ -35,7 +37,6 @@ export default function LoginPage() {
           }
         }
         
-        // Fallback to session-based auth
         try {
           const response = await fetch('http://localhost:4000/api/auth/status', {
             credentials: 'include'
@@ -43,7 +44,6 @@ export default function LoginPage() {
           const data = await response.json();
           
           if (data.authenticated) {
-            // User is already logged in, redirect to dashboard
             window.location.href = '/dashboard';
           } else {
             setLoading(false);
@@ -79,11 +79,9 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Store token for development
         if (data.token) {
           localStorage.setItem('authToken', data.token);
         }
-        // Redirect to dashboard on successful login
         window.location.href = '/dashboard';
       } else {
         setError(data.error || 'Login failed');
@@ -97,82 +95,96 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-networthyBlue to-networthyGreen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-4 border-white"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-foreground text-xl">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-networthyBlue to-networthyGreen">
-      <div className="bg-white/90 rounded-2xl shadow-xl p-10 w-full max-w-md flex flex-col items-center">
-        <div className="mb-8 flex flex-col items-center">
-          <Image src="/NETWORTHY.png" alt="Networthy Logo" width={64} height={64} className="rounded-full mb-2" />
-          <h1 className="text-3xl font-bold text-black mb-2">Sign in to Networthy</h1>
-          <p className="text-gray-600 text-center">Access your creator dashboard</p>
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        {/* Logo and Header */}
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-6">
+            <div className="relative w-16 h-16">
+              <Image 
+                src="/assets/Asset 1.png" 
+                alt="Networthy Logo" 
+                fill 
+                sizes="64px" 
+                className="object-contain" 
+              />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold">Welcome Back</h1>
+          <p className="text-muted-foreground">Sign in to your Networthy account</p>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
+        {/* Login Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign In</CardTitle>
+            <CardDescription>
+              Enter your credentials to access your dashboard
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="Enter your email"
+                />
+              </div>
 
-        {/* Email/Password Login */}
-        <form onSubmit={handleLogin} className="w-full space-y-4 mb-6">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-networthyGreen focus:border-transparent text-black bg-white"
-              required
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="Enter your password"
+                />
+              </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-networthyGreen focus:border-transparent text-black bg-white"
-              required
-            />
-          </div>
+              {error && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-destructive text-sm">
+                  {error}
+                </div>
+              )}
 
-          <button
-            type="submit"
-            disabled={loginLoading}
-            className="w-full bg-networthyGreen text-black py-3 rounded-lg font-semibold hover:bg-networthyGreen/90 transition-colors disabled:opacity-50"
-          >
-            {loginLoading ? 'Signing In...' : 'Sign In'}
-          </button>
-        </form>
+              <Button type="submit" className="w-full" disabled={loginLoading}>
+                {loginLoading ? 'Signing In...' : 'Sign In'}
+              </Button>
+            </form>
 
+            <div className="mt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Don't have an account?{' '}
+                <Link href="/register" className="text-primary hover:underline font-medium">
+                  Sign up here
+                </Link>
+              </p>
+            </div>
 
-
-        <div className="mt-6 text-center">
-          <p className="text-gray-600">
-            Don&apos;t have an account?{' '}
-            <Link href="/register" className="text-networthyGreen hover:underline">
-              Create Account
-            </Link>
-          </p>
-        </div>
-
-        <div className="mt-4 text-center">
-          <Link href="/" className="text-gray-600 hover:text-black transition-colors">
-            ← Back to Home
-          </Link>
-        </div>
+            <div className="mt-6 text-center">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/" className="flex items-center gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Home
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -545,16 +545,57 @@ app.get("/api/auth/google/callback", async (req, res) => {
 });
 
 // Twitch OAuth
-app.get("/api/auth/twitch", (req, res, next) => {
-  // Check if user is logged in before starting OAuth
-  if (!req.session.authenticated) {
+app.get("/api/auth/twitch", async (req, res, next) => {
+  // Check if user is authenticated via session or token
+  let userEmail = null;
+  let userId = null;
+  
+  // First try session-based authentication
+  if (req.session.authenticated && req.session.user) {
+    userEmail = req.session.user.email;
+    userId = req.session.user.id;
+  } else {
+    // Try token-based authentication
+    const authHeader = req.headers.authorization;
+    const tokenParam = req.query.token;
+    
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (tokenParam) {
+      token = tokenParam;
+    }
+    
+    if (token) {
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const [email, timestamp] = decoded.split(':');
+        
+        // Check if token is not expired (24 hours)
+        const tokenTime = parseInt(timestamp);
+        const currentTime = Date.now();
+        if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+          userEmail = email;
+          // Find user ID from database
+          const user = await findUserByEmail(email);
+          if (user) {
+            userId = user.id;
+          }
+        }
+      } catch (decodeError) {
+        console.error('Token decode error:', decodeError);
+      }
+    }
+  }
+  
+  if (!userEmail || !userId) {
     return res.redirect('http://localhost:3000/login?error=not_logged_in');
   }
   
-  // Store the user's session info in a state parameter
+  // Store the user's info in a state parameter
   const state = Buffer.from(JSON.stringify({
-    userId: req.session.user.id,
-    email: req.session.user.email,
+    userId: userId,
+    email: userEmail,
     timestamp: Date.now()
   })).toString('base64');
   
@@ -642,29 +683,92 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
 });
 
 // TikTok OAuth
-app.get("/api/auth/tiktok", (req, res) => {
-  const url = `https://www.tiktok.com/v2/auth/authorize/?client_key=${process.env.TIKTOK_CLIENT_KEY}&response_type=code&scope=user.info.basic,video.list,video.stats&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}&state=networthy`;
+app.get("/api/auth/tiktok", async (req, res) => {
+  // Check if user is authenticated via session or token
+  let userEmail = null;
+  let userId = null;
+  
+  // First try session-based authentication
+  if (req.session.authenticated && req.session.user) {
+    userEmail = req.session.user.email;
+    userId = req.session.user.id;
+  } else {
+    // Try token-based authentication
+    const authHeader = req.headers.authorization;
+    const tokenParam = req.query.token;
+    
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (tokenParam) {
+      token = tokenParam;
+    }
+    
+    if (token) {
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const [email, timestamp] = decoded.split(':');
+        
+        // Check if token is not expired (24 hours)
+        const tokenTime = parseInt(timestamp);
+        const currentTime = Date.now();
+        if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+          userEmail = email;
+          // Find user ID from database
+          const user = await findUserByEmail(email);
+          if (user) {
+            userId = user.id;
+          }
+        }
+      } catch (decodeError) {
+        console.error('Token decode error:', decodeError);
+      }
+    }
+  }
+  
+  if (!userEmail || !userId) {
+    return res.redirect('http://localhost:3000/login?error=not_logged_in');
+  }
+  
+  // Store the user's info in a state parameter
+  const state = Buffer.from(JSON.stringify({
+    userId: userId,
+    email: userEmail,
+    timestamp: Date.now()
+  })).toString('base64');
+  
+  const url = `https://www.tiktok.com/v2/auth/authorize/?client_key=${process.env.TIKTOK_CLIENT_KEY}&response_type=code&scope=user.info.basic,video.list,video.stats&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}&state=${encodeURIComponent(state)}`;
   res.redirect(url);
 });
 
 app.get("/api/auth/tiktok/callback", async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
   try {
     const tokenData = await getTikTokToken(code);
     
-    // Check if user is logged in
-    if (!req.session.authenticated) {
-      return res.redirect('http://localhost:3000/login?error=not_logged_in');
+    // Get user info from state parameter
+    let userInfo;
+    try {
+      if (state) {
+        userInfo = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+        console.log('TikTok OAuth state decoded:', userInfo);
+      } else {
+        console.error('No state parameter in TikTok OAuth callback');
+        return res.redirect('http://localhost:3000/login?error=tiktok_oauth_failed');
+      }
+    } catch (stateError) {
+      console.error('Error decoding TikTok OAuth state:', stateError);
+      return res.redirect('http://localhost:3000/login?error=tiktok_oauth_failed');
     }
     
-    // Store token for the logged-in user
-    await storeToken(req.session.user.email, 'tiktok', tokenData);
+    // Store token for the user from state parameter
+    await storeToken(userInfo.email, 'tiktok', tokenData);
     
     // Get user's TikTok info (if available in token data)
     const tiktokUser = tokenData.open_id || 'authenticated_user';
     
     // Add platform to user's connected platforms
-    const user = await findUserByEmail(req.session.user.email);
+    const user = await findUserByEmail(userInfo.email);
     if (user) {
       const connectedPlatforms = user.connected_platforms || [];
       if (!connectedPlatforms.find(p => p.name === 'tiktok')) {
@@ -683,7 +787,7 @@ app.get("/api/auth/tiktok/callback", async (req, res) => {
     await updateAnalyticsData(user.id);
     
     // Redirect to frontend dashboard
-    res.redirect('http://localhost:3000/dashboard?platform=tiktok&email=' + encodeURIComponent(req.session.user.email));
+    res.redirect('http://localhost:3000/dashboard?platform=tiktok&email=' + encodeURIComponent(userInfo.email));
   } catch (err) {
     console.error('TikTok OAuth error:', err);
     res.redirect('http://localhost:3000/login?error=tiktok_oauth_failed');

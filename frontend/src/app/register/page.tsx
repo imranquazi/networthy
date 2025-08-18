@@ -1,18 +1,77 @@
 'use client';
-import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft } from 'lucide-react';
 
 export default function RegisterPage() {
+  const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [registerLoading, setRegisterLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          try {
+            const response = await fetch('http://localhost:4000/api/auth/status-token', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            const data = await response.json();
+            
+            if (data.authenticated) {
+              window.location.href = '/dashboard';
+              return;
+            }
+          } catch {
+            console.log('Token auth failed, trying session auth...');
+          }
+        }
+        
+        try {
+          const response = await fetch('http://localhost:4000/api/auth/status', {
+            credentials: 'include'
+          });
+          const data = await response.json();
+          
+          if (data.authenticated) {
+            window.location.href = '/dashboard';
+          } else {
+            setLoading(false);
+          }
+        } catch {
+          console.log('Session auth failed, showing register form...');
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setRegisterLoading(true);
     setError('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      setRegisterLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch('http://localhost:4000/api/auth/register', {
@@ -27,7 +86,9 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Redirect to dashboard on successful registration
+        if (data.token) {
+          localStorage.setItem('authToken', data.token);
+        }
         window.location.href = '/dashboard';
       } else {
         setError(data.error || 'Registration failed');
@@ -35,77 +96,114 @@ export default function RegisterPage() {
     } catch {
       setError('Network error. Please try again.');
     } finally {
-      setLoading(false);
+      setRegisterLoading(false);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-foreground text-xl">Loading...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-networthyBlue to-networthyGreen">
-      <div className="bg-white/90 rounded-2xl shadow-xl p-10 w-full max-w-md flex flex-col items-center">
-        <div className="mb-8 flex flex-col items-center">
-          <Image src="/NETWORTHY.png" alt="Networthy Logo" width={64} height={64} className="rounded-full mb-2" />
-          <h1 className="text-3xl font-bold text-black mb-2">Create Account</h1>
-          <p className="text-gray-600 text-center">Join Networthy to track your creator success</p>
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        {/* Logo and Header */}
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-6">
+            <div className="relative w-16 h-16">
+              <Image 
+                src="/assets/Asset 1.png" 
+                alt="Networthy Logo" 
+                fill 
+                sizes="64px" 
+                className="object-contain" 
+              />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold">Create Account</h1>
+          <p className="text-muted-foreground">Join Networthy to track your creator success</p>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
+        {/* Register Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign Up</CardTitle>
+            <CardDescription>
+              Create your account to get started with Networthy
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="Enter your email"
+                />
+              </div>
 
-        <form onSubmit={handleSubmit} className="w-full space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-networthyGreen focus:border-transparent text-black bg-white"
-              required
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="Create a password"
+                />
+              </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-networthyGreen focus:border-transparent text-black bg-white"
-              required
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  type="password"
+                  id="confirmPassword"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="Confirm your password"
+                />
+              </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-networthyGreen text-black py-3 rounded-lg font-semibold hover:bg-networthyGreen/90 transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Creating Account...' : 'Create Account'}
-          </button>
-        </form>
+              {error && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-destructive text-sm">
+                  {error}
+                </div>
+              )}
 
-        <div className="mt-6 text-center">
-          <p className="text-gray-600">
-            Already have an account?{' '}
-            <Link href="/login" className="text-networthyGreen hover:underline">
-              Sign In
-            </Link>
-          </p>
-        </div>
+              <Button type="submit" className="w-full" disabled={registerLoading}>
+                {registerLoading ? 'Creating Account...' : 'Create Account'}
+              </Button>
+            </form>
 
-        <div className="mt-4 text-center">
-          <Link href="/" className="text-gray-600 hover:text-black transition-colors">
-            ← Back to Home
-          </Link>
-        </div>
+            <div className="mt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link href="/login" className="text-primary hover:underline font-medium">
+                  Sign in here
+                </Link>
+              </p>
+            </div>
+
+            <div className="mt-6 text-center">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/" className="flex items-center gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Home
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

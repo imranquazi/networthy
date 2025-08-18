@@ -9,8 +9,16 @@ import {
   BarChart3,
   ArrowRight,
   CheckCircle,
-  Star
+  Star,
+  Zap,
+  Target,
+  Award,
+  ChevronRight
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 export default function HomePage() {
   const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user?: { email: string; platform: string } } | null>(null);
@@ -18,7 +26,6 @@ export default function HomePage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Use token-based auth only
         const token = localStorage.getItem('authToken');
         if (token) {
           try {
@@ -38,7 +45,6 @@ export default function HomePage() {
           }
         }
         
-        // No valid token found
         setAuthStatus({ authenticated: false });
         localStorage.removeItem('authToken');
       } catch (error) {
@@ -48,252 +54,330 @@ export default function HomePage() {
       }
     };
 
-    // Add a small delay before the first check to ensure backend is ready
     const timer = setTimeout(() => {
       checkAuth();
     }, 500);
 
     return () => clearTimeout(timer);
   }, []);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-networthyBlue to-networthyGreen">
+    <div className="min-h-screen">
+      {/* Gradient background for top section */}
+      <div className="absolute inset-0 h-[600px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
       {/* Header */}
-      <header className="bg-white/80 shadow-lg border-b rounded-b-2xl py-4 px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="relative w-16 h-16">
-            <Image src="/NETWORTHY.png" alt="Networthy Logo" fill sizes="64px" className="rounded-full shadow-networthy object-contain bg-networthyYellow p-2" />
+      <header className="relative z-10 backdrop-blur-md supports-[backdrop-filter] border-none">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <div>
+                <Image 
+                  src="/assets/Asset 10.png" 
+                  alt="Networthy Logo" 
+                  width={175}
+                  height={175}
+                  className="object-contain" 
+                />
+              </div>
+            </Link>
           </div>
-          <h1 className="text-4xl text-black tracking-tight drop-shadow-sm great-vibes-regular">
-            Networthy
-          </h1>
-        </div>
-        <div className="flex items-center space-x-4">
-                        {authStatus?.authenticated ? (
-                <>
-                  <span className="text-sm text-gray-600">
-                    Welcome, {authStatus.user?.email}
-                  </span>
-                  <Link href="/dashboard" className="bg-networthyGreen text-white px-6 py-2 rounded-lg hover:bg-networthyGreen/90 transition-colors font-semibold">
-                    Dashboard
-                  </Link>
-                  <button 
-                    onClick={async () => {
-                      try {
-                        // Clear local storage and state immediately
-                        localStorage.removeItem('authToken');
-                        setAuthStatus({ authenticated: false });
-                        
-                        // Small delay then reload to ensure clean state
-                        setTimeout(() => {
-                          window.location.reload();
-                        }, 100);
-                      } catch (error) {
-                        console.error('Logout error:', error);
-                        // Clear local state and reload anyway
-                        setAuthStatus({ authenticated: false });
-                        localStorage.removeItem('authToken');
+          
+          <div className="flex items-center gap-4">
+            {authStatus?.authenticated ? (
+              <>
+                <span className="text-sm text-muted-foreground">
+                  Welcome, {authStatus.user?.email}
+                </span>
+                <Button asChild>
+                  <Link href="/dashboard">Dashboard</Link>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      localStorage.removeItem('authToken');
+                      setAuthStatus({ authenticated: false });
+                      setTimeout(() => {
                         window.location.reload();
-                      }
-                    }}
-                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link href="/login" className="text-black hover:text-networthyGreen transition-colors font-semibold">
-                    Sign In
-                  </Link>
-                  <Link href="/register" className="bg-networthyGreen text-black px-6 py-2 rounded-lg hover:bg-networthyGreen/90 transition-colors font-semibold">
-                    Get Started
-                  </Link>
-                </>
-              )}
+                      }, 100);
+                    } catch (error) {
+                      console.error('Logout error:', error);
+                      setAuthStatus({ authenticated: false });
+                      localStorage.removeItem('authToken');
+                      window.location.reload();
+                    }
+                  }}
+                >
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link href="/login">Sign In</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/register">Get Started</Link>
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        {/* Hero Section */}
-        <div className="text-center mb-20">
-          <h1 className="text-6xl font-bold text-white mb-6 great-vibes-regular">
-            Track Your Creator Success
+      {/* Hero Section */}
+      <section className="container mx-auto px-4 py-24 sm:px-6 lg:px-8 max-w-7xl relative z-10">
+        <div className="mx-auto max-w-4xl text-center">
+          <Badge variant="secondary" className="mb-4">
+            🚀 Creator Analytics Platform
+          </Badge>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+            Track Your
+            <span className="block bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Creator Success
+            </span>
           </h1>
-          <p className="text-xl text-white/90 mb-8 max-w-3xl mx-auto">
+          <p className="mt-6 text-lg text-muted-foreground sm:text-xl">
             Networthy is your all-in-one platform for tracking revenue, growth, and performance across all your content creation platforms. 
             Get insights that help you grow your creator business.
           </p>
-          <Link href={authStatus?.authenticated ? "/dashboard" : "/register"} className="inline-flex items-center bg-black text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors">
-            {authStatus?.authenticated ? "Go to Dashboard" : "Get Started"} <ArrowRight className="ml-2 w-5 h-5" />
-          </Link>
-        </div>
-
-        {/* Features Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
-          <div className="panel p-8 text-center">
-            <div className="p-4 bg-networthyGreen/20 rounded-full mb-4 mx-auto w-16 h-16 flex items-center justify-center">
-              <DollarSign className="w-8 h-8 text-black" />
-            </div>
-            <h3 className="text-xl font-semibold text-black mb-3">Revenue Tracking</h3>
-            <p className="text-gray-600">
-              Monitor your earnings across YouTube, Twitch, TikTok, and more in one unified dashboard.
-            </p>
-          </div>
-
-          <div className="panel p-8 text-center">
-            <div className="p-4 bg-networthyBlue/20 rounded-full mb-4 mx-auto w-16 h-16 flex items-center justify-center">
-              <TrendingUp className="w-8 h-8 text-black" />
-            </div>
-            <h3 className="text-xl font-semibold text-black mb-3">Growth Analytics</h3>
-            <p className="text-gray-600">
-              Track your follower growth, engagement rates, and performance trends over time.
-            </p>
-          </div>
-
-          <div className="panel p-8 text-center">
-            <div className="p-4 bg-networthyYellow/20 rounded-full mb-4 mx-auto w-16 h-16 flex items-center justify-center">
-              <Users className="w-8 h-8 text-black" />
-            </div>
-            <h3 className="text-xl font-semibold text-black mb-3">Audience Insights</h3>
-            <p className="text-gray-600">
-              Understand your audience across platforms with detailed analytics and demographics.
-            </p>
-          </div>
-
-          <div className="panel p-8 text-center">
-            <div className="p-4 bg-networthyGreen/20 rounded-full mb-4 mx-auto w-16 h-16 flex items-center justify-center">
-              <BarChart3 className="w-8 h-8 text-black" />
-            </div>
-            <h3 className="text-xl font-semibold text-black mb-3">Performance Reports</h3>
-            <p className="text-gray-600">
-              Generate comprehensive reports to optimize your content strategy and maximize earnings.
-            </p>
+          
+          <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
+            <Button size="lg" asChild>
+              <Link href="/register">
+                {authStatus?.authenticated ? "Go to Dashboard" : "Get Started"}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
           </div>
         </div>
+      </section>
 
-        {/* How It Works */}
-        <div className="panel p-12 mb-20">
-          <h2 className="text-4xl font-bold text-black text-center mb-12 great-vibes-regular">
+      {/* Features Section */}
+      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="group hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                  <DollarSign className="h-6 w-6 text-primary" />
+                </div>
+                <CardTitle>Revenue Tracking</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>
+                  Monitor your earnings across YouTube, Twitch, TikTok, and more in one unified dashboard.
+                </CardDescription>
+              </CardContent>
+            </Card>
+
+            <Card className="group hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                  <TrendingUp className="h-6 w-6 text-primary" />
+                </div>
+                <CardTitle>Growth Analytics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>
+                  Track your follower growth, engagement rates, and performance trends over time.
+                </CardDescription>
+              </CardContent>
+            </Card>
+
+            <Card className="group hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                  <Users className="h-6 w-6 text-primary" />
+                </div>
+                <CardTitle>Audience Insights</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>
+                  Understand your audience across platforms with detailed analytics and demographics.
+                </CardDescription>
+              </CardContent>
+            </Card>
+
+            <Card className="group hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                  <BarChart3 className="h-6 w-6 text-primary" />
+                </div>
+                <CardTitle>Performance Reports</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>
+                  Generate comprehensive reports to optimize your content strategy and maximize earnings.
+                </CardDescription>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
             How Networthy Works
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <p className="mt-4 text-muted-foreground">
+            Get started in three simple steps
+          </p>
+          
+          <div className="mt-12 grid gap-8 md:grid-cols-3">
             <div className="text-center">
-              <div className="bg-black text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mb-4 mx-auto">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-lg">
                 1
               </div>
-              <h3 className="text-xl font-semibold text-black mb-3">Connect Your Platforms</h3>
-              <p className="text-gray-600">
+              <h3 className="mt-4 text-lg font-semibold">Connect Your Platforms</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
                 Link your YouTube, Twitch, TikTok, and other creator accounts to start tracking.
               </p>
             </div>
+            
             <div className="text-center">
-              <div className="bg-black text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mb-4 mx-auto">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-lg">
                 2
               </div>
-              <h3 className="text-xl font-semibold text-black mb-3">Automatic Data Sync</h3>
-              <p className="text-gray-600">
+              <h3 className="mt-4 text-lg font-semibold">Automatic Data Sync</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
                 Networthy automatically syncs your revenue, followers, views, and engagement data.
               </p>
             </div>
+            
             <div className="text-center">
-              <div className="bg-black text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mb-4 mx-auto">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-lg">
                 3
               </div>
-              <h3 className="text-xl font-semibold text-black mb-3">Get Insights & Grow</h3>
-              <p className="text-gray-600">
+              <h3 className="mt-4 text-lg font-semibold">Get Insights & Grow</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
                 Use our analytics to understand trends, optimize content, and increase your earnings.
               </p>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Benefits Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-20">
-          <div className="panel p-8">
-            <h3 className="text-2xl font-bold text-black mb-6">Why Choose Networthy?</h3>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-6 h-6 text-black mt-1 flex-shrink-0" />
-                <div>
-                  <h4 className="font-semibold text-black">Unified Dashboard</h4>
-                  <p className="text-gray-600 text-sm">View all your platforms in one place with real-time updates</p>
+      {/* Benefits Section */}
+      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-8 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Why Choose Networthy?</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-semibold">Unified Dashboard</h4>
+                    <p className="text-sm text-muted-foreground">View all your platforms in one place with real-time updates</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-6 h-6 text-black mt-1 flex-shrink-0" />
-                <div>
-                  <h4 className="font-semibold text-black">Revenue Optimization</h4>
-                  <p className="text-gray-600 text-sm">Identify your highest-earning content and platforms</p>
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-semibold">Revenue Optimization</h4>
+                    <p className="text-sm text-muted-foreground">Identify your highest-earning content and platforms</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-6 h-6 text-black mt-1 flex-shrink-0" />
-                <div>
-                  <h4 className="font-semibold text-black">Growth Tracking</h4>
-                  <p className="text-gray-600 text-sm">Monitor your progress with detailed growth analytics</p>
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-semibold">Growth Tracking</h4>
+                    <p className="text-sm text-muted-foreground">Monitor your progress with detailed growth analytics</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-6 h-6 text-black mt-1 flex-shrink-0" />
-                <div>
-                  <h4 className="font-semibold text-black">Smart Insights</h4>
-                  <p className="text-gray-600 text-sm">Get AI-powered recommendations to boost your earnings</p>
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-semibold">Smart Insights</h4>
+                    <p className="text-sm text-muted-foreground">Get AI-powered recommendations to boost your earnings</p>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
+              </CardContent>
+            </Card>
 
-          <div className="panel p-8">
-            <h3 className="text-2xl font-bold text-black mb-6">Perfect For</h3>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-black" />
-                <span className="text-black font-medium">Content Creators</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-black" />
-                <span className="text-black font-medium">Streamers & Gamers</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-black" />
-                <span className="text-black font-medium">Social Media Influencers</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-black" />
-                <span className="text-black font-medium">Podcasters</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-black" />
-                <span className="text-black font-medium">Digital Artists</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-black" />
-                <span className="text-black font-medium">Anyone Building a Creator Business</span>
-              </div>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Perfect For</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Star className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Content Creators</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Star className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Streamers & Gamers</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Star className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Social Media Influencers</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Star className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Podcasters</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Star className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Digital Artists</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Star className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Anyone Building a Creator Business</span>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
+      </section>
 
-        {/* CTA Section */}
-        <div className="text-center panel p-12">
-          <h2 className="text-4xl font-bold text-black mb-6 great-vibes-regular">
-            Ready to Track Your Success?
-          </h2>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            Join thousands of creators who use Networthy to optimize their content strategy and maximize their earnings.
-          </p>
-          <Link href="/dashboard" className="inline-flex items-center bg-black text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors">
-            Access Your Dashboard <ArrowRight className="ml-2 w-5 h-5" />
-          </Link>
+      {/* CTA Section */}
+      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="mx-auto max-w-4xl text-center">
+          <Card className="bg-primary/5 border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-3xl">Ready to Track Your Success?</CardTitle>
+              <CardDescription className="text-lg">
+                Join thousands of creators who use Networthy to optimize their content strategy and maximize their earnings.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button size="lg" asChild>
+                <Link href="/dashboard">
+                  Access Your Dashboard
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
-      </main>
+      </section>
 
       {/* Footer */}
-      <footer className="bg-white/80 py-8 mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-gray-600">
-            © 2025 Networthy. Empowering creators to track, analyze, and grow their success.
-          </p>
+      <footer className="border-t bg-muted/50">
+        <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-7xl">
+          <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
+            <div className="flex items-center gap-2">
+              <div className="relative w-8 h-8">
+                <Image 
+                  src="/assets/Asset 1.png" 
+                  alt="Networthy Logo" 
+                  fill 
+                  sizes="32px" 
+                  className="object-contain" 
+                />
+              </div>
+              <span className="font-semibold">Networthy</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              © 2025 Networthy. Empowering creators to track, analyze, and grow their success.
+            </p>
+          </div>
         </div>
       </footer>
     </div>
