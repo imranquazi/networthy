@@ -189,7 +189,7 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <CardDescription>
-                  Understand your audience across platforms with detailed analytics and demographics.
+                  Understand your audience across platforms with detailed analytics.
                 </CardDescription>
               </CardContent>
             </Card>
