@@ -64,7 +64,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Gradient background for top section */}
-      <div className="absolute inset-0 h-[800px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
+      <div className="absolute inset-0 h-[1000px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
       {/* Header */}
       <header className="relative z-10 supports-[backdrop-filter] border-none">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
