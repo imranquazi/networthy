@@ -64,9 +64,9 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Gradient background for top section */}
-      <div className="absolute inset-0 h-[600px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
+      <div className="absolute inset-0 h-[800px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
       {/* Header */}
-      <header className="relative z-10 backdrop-blur-md supports-[backdrop-filter] border-none">
+      <header className="relative z-10 supports-[backdrop-filter] border-none">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
@@ -114,11 +114,8 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                <Button variant="ghost" asChild>
+                <Button variant="ghost" className="text-white hover:text-white/80" asChild>
                   <Link href="/login">Sign In</Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/register">Get Started</Link>
                 </Button>
               </>
             )}
@@ -129,16 +126,13 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-24 sm:px-6 lg:px-8 max-w-7xl relative z-10">
         <div className="mx-auto max-w-4xl text-center">
-          <Badge variant="secondary" className="mb-4">
-            🚀 Creator Analytics Platform
-          </Badge>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl text-white">
             Track Your
-            <span className="block bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <span className="block text-white">
               Creator Success
             </span>
           </h1>
-          <p className="mt-6 text-lg text-muted-foreground sm:text-xl">
+          <p className="mt-6 text-lg text-white/80 sm:text-xl">
             Networthy is your all-in-one platform for tracking revenue, growth, and performance across all your content creation platforms. 
             Get insights that help you grow your creator business.
           </p>
@@ -155,7 +149,7 @@ export default function HomePage() {
       </section>
 
       {/* Features Section */}
-      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl">
+      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl relative z-10">
         <div className="mx-auto max-w-6xl">
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
             <Card className="group hover:shadow-lg transition-shadow">
@@ -218,7 +212,7 @@ export default function HomePage() {
       </section>
 
       {/* How It Works Section */}
-      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl">
+      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl relative z-10">
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
             How Networthy Works

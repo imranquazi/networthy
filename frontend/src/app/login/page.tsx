@@ -102,23 +102,26 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="min-h-screen bg-white">
+      {/* Gradient background for top section */}
+      <div className="absolute inset-0 h-[600px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
+      <div className="relative z-10 flex items-center justify-center p-6 min-h-screen">
       <div className="w-full max-w-md">
         {/* Logo and Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <div className="relative w-16 h-16">
+            <div>
               <Image 
-                src="/assets/Asset 1.png" 
+                src="/assets/Asset 10.png" 
                 alt="Networthy Logo" 
-                fill 
-                sizes="64px" 
+                width={175}
+                height={175}
                 className="object-contain" 
               />
             </div>
           </div>
-          <h1 className="text-2xl font-bold">Welcome Back</h1>
-          <p className="text-muted-foreground">Sign in to your Networthy account</p>
+          <h1 className="text-2xl font-bold text-white">Welcome Back</h1>
+          <p className="text-white/80">Sign in to your Networthy account</p>
         </div>
 
         {/* Login Form */}
@@ -185,6 +188,7 @@ export default function LoginPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );
