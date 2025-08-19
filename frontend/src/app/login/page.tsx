@@ -110,7 +110,7 @@ export default function LoginPage() {
         {/* Logo and Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <div>
+            <div className="-ml-2">
               <Image 
                 src="/assets/Asset 10.png" 
                 alt="Networthy Logo" 
