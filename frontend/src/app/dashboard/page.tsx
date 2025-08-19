@@ -25,6 +25,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 import RealTimeUpdates from '@/components/RealTimeUpdates';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   LineChart, 
   Line, 
@@ -108,11 +110,11 @@ interface AnalyticsData {
 }
 
 export default function DashboardPage() {
+  const { user, logout } = useAuth();
   const [platformData, setPlatformData] = useState<PlatformData[]>([]);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingPlatform, setEditingPlatform] = useState<string | null>(null);
-  const [user, setUser] = useState<{ email: string; platform: string } | null>(null);
   const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user: { email: string; platform: string } | null } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
@@ -200,12 +202,9 @@ export default function DashboardPage() {
       const email = urlParams.get('email');
 
       if (platform && email) {
-        setUser({ email, platform });
         window.history.replaceState({}, document.title, window.location.pathname);
         setConnectedPlatforms(prev => [...prev, platform.toLowerCase()]);
         alert(`Successfully connected ${platform}! Your data will appear in the dashboard.`);
-      } else if (authData.authenticated && authData.user) {
-        setUser(authData.user);
       }
 
       // Force refresh platform data if user has connected platforms
@@ -476,24 +475,18 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
-      localStorage.removeItem('authToken');
       await fetch('http://localhost:4000/api/auth/logout', {
         credentials: 'include'
       });
-      setUser(null);
       setAuthStatus({ authenticated: false, user: null });
       setConnectedPlatforms([]);
       setShowSettings(false);
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 100);
+      logout(); // Use the logout function from useAuth hook
     } catch (error) {
       console.error('Logout error:', error);
-      localStorage.removeItem('authToken');
-      setUser(null);
       setAuthStatus({ authenticated: false, user: null });
       setConnectedPlatforms([]);
-      window.location.href = '/';
+      logout(); // Use the logout function from useAuth hook
     }
   };
 
@@ -505,382 +498,385 @@ export default function DashboardPage() {
     );
   }
 
+  // Remove the old authentication check since we're using ProtectedRoute now
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="relative w-10 h-10">
-                <Image 
-                  src="/assets/Asset 1.png" 
-                  alt="Networthy Logo" 
-                  fill 
-                  sizes="40px" 
-                  className="object-contain" 
-                />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Networthy</h1>
-                <p className="text-sm text-muted-foreground">Creator Success Platform</p>
-              </div>
-            </Link>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Home
-            </Link>
-            {user && (
-              <div className="flex items-center space-x-2 text-sm">
-                <span className="text-muted-foreground">Connected to {Array.isArray(user.platform) ? user.platform.map(p => p.name).join(', ') : user.platform}:</span>
-                <span className="font-medium">{user.email}</span>
-              </div>
-            )}
-            {dataStatus === 'mock' && (
-              <Badge variant="secondary">
-                📊 Demo Data
-              </Badge>
-            )}
-            {dataStatus === 'real' && (
-              <Badge variant="default">
-                ✅ Real Data
-              </Badge>
-            )}
-            {dataStatus === 'api_error' && (
-              <Badge variant="destructive">
-                ⚠️ API Issues
-              </Badge>
-            )}
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => {
-                setLoading(true);
-                fetchData();
-              }}
-              title="Refresh Data"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-7xl">
-        {/* API Issues Warning */}
-        {(dataStatus === 'mock' || dataStatus === 'api_error') && connectedPlatforms.length > 0 && (
-          <Card className="mb-6 border-yellow-200 bg-yellow-50">
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
+    <ProtectedRoute>
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
+          <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
+            <div className="flex items-center gap-4">
+              <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <div className="relative w-10 h-10">
+                  <Image 
+                    src="/assets/Asset 1.png" 
+                    alt="Networthy Logo" 
+                    fill 
+                    sizes="40px" 
+                    className="object-contain" 
+                  />
                 </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-yellow-800">
-                    API Connection Issue
-                  </h3>
-                  <div className="mt-2 text-sm text-yellow-700">
-                    <p>
-                      Your platforms are connected but we're having trouble fetching data from the APIs. 
-                      This could be due to API quota limits, network issues, or your channels being new with no data yet.
-                      The graphs below show demo data until this is resolved.
-                    </p>
-                    {platformData.some(p => p.error) && (
-                      <p className="mt-2 text-xs text-yellow-600">
-                        💡 <strong>Tip:</strong> Some APIs have daily quotas. Try refreshing later or check your platform settings.
-                      </p>
-                    )}
-                  </div>
+                <div>
+                  <h1 className="text-xl font-bold">Networthy</h1>
+                  <p className="text-sm text-muted-foreground">Creator Success Platform</p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Success Message for Real Data */}
-        {dataStatus === 'real' && connectedPlatforms.length > 0 && (
-          <Card className="mb-6 border-green-200 bg-green-50">
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
+              </Link>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <Link href="/" className="flex items-center text-muted-foreground hover:text-foreground transition-colors">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Home
+              </Link>
+              {user && (
+                <div className="flex items-center space-x-2 text-sm">
+                  <span className="text-muted-foreground">Connected to {Array.isArray(user.platform) ? user.platform.map(p => p.name).join(', ') : user.platform}:</span>
+                  <span className="font-medium">{user.email}</span>
                 </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-green-800">
-                    Real Data Connected
-                  </h3>
-                  <div className="mt-2 text-sm text-green-700">
-                    <p>
-                      Your platform data is being fetched from the actual APIs. 
-                      {platformData.some(p => (p.subscribers || 0) === 0 && (p.followers || 0) === 0 && (p.views || 0) === 0) 
-                        ? ' Some platforms show zero values because they are new or have no activity yet. This is normal for new channels!' 
-                        : ' All data is up to date!'}
-                    </p>
-                    {platformData.some(p => p.error) && (
-                      <p className="mt-2 text-xs text-green-600">
-                        ⚠️ <strong>Note:</strong> Some platforms have API errors but we're still showing available data.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {analyticsData ? formatCurrency(analyticsData.totalRevenue) : '$0'}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Growth</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {analyticsData ? `${analyticsData.totalGrowth}%` : '0%'}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Followers</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {platformData.reduce((sum, platform) => sum + (platform.followers || platform.subscribers || 0), 0).toLocaleString()}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Views</CardTitle>
-              <Eye className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {platformData.reduce((sum, platform) => sum + (platform.views || platform.viewers || 0), 0).toLocaleString()}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-10">
-          {/* Revenue Trend */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Revenue Trend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {analyticsData?.totalRevenue === 0 && (
-                <p className="text-sm text-muted-foreground mb-4">
-                  📊 Revenue trend shows zero because your channels are new. Start creating content to see your revenue grow!
-                </p>
               )}
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={analyticsData?.monthlyTrend.map((value, index) => ({ month: `Month ${index + 1}`, revenue: value })) || []}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
-                  <Line type="monotone" dataKey="revenue" stroke="#2176ae" strokeWidth={3} />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Platform Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Revenue by Platform</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {analyticsData?.totalRevenue === 0 && (
-                <p className="text-sm text-muted-foreground mb-4">
-                  📊 Chart shows follower distribution since revenue is zero. Focus on growing your audience first!
-                </p>
+              {dataStatus === 'mock' && (
+                <Badge variant="secondary">
+                  📊 Demo Data
+                </Badge>
               )}
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={analyticsData?.platformBreakdown || []}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ platform, percentage }: { platform: string; percentage: number }) => `${platform} ${percentage}%`}
-                    outerRadius={90}
-                    fill="#2176ae"
-                    dataKey="percentage"
-                  >
-                    {analyticsData?.platformBreakdown.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={["#2176ae", "#53fc18", "#ffe066", "#1a2639", "#f4faff"][index % 5]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Platform Performance */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Platform Performance</CardTitle>
-              <Button
-                onClick={async () => {
-                  try {
-                    const response = await fetch('http://localhost:4000/api/platforms', {
-                      credentials: 'include',
-                      cache: 'no-cache'
-                    });
-                    const data = await response.json();
-                    setPlatformData(data);
-                  } catch (error) {
-                    console.error('Error refreshing data:', error);
-                  }
+              {dataStatus === 'real' && (
+                <Badge variant="default">
+                  ✅ Real Data
+                </Badge>
+              )}
+              {dataStatus === 'api_error' && (
+                <Badge variant="destructive">
+                  ⚠️ API Issues
+                </Badge>
+              )}
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  setLoading(true);
+                  fetchData();
                 }}
+                title="Refresh Data"
               >
-                Refresh Data
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
               </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Platform</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Followers/Subscribers</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Views/Viewers</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Revenue</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Growth</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-background divide-y divide-border">
-                  {platformData.filter(platform => platform && typeof platform === 'object' && platform.name).map((platform) => (
-                    <tr key={platform.name} className="hover:bg-muted/50 transition">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-8 w-8 flex items-center justify-center">
-                            {getPlatformIcon(platform.name)}
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium">{platform.name}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
-                        {formatNumber(platform.followers || platform.subscribers || 0)}
-                      </td>
-                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
-                         {formatNumber(platform.views || platform.viewers || 0)}
-                       </td>
-                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
-                         {formatCurrency(platform.revenue)}
-                         <Button
-                           variant="link"
-                           size="sm"
-                           onClick={() => setEditingPlatform(platform.name)}
-                           className="ml-2 p-0 h-auto"
-                         >
-                           Edit
-                         </Button>
-                         {editingPlatform === platform.name && (
-                           <RevenueForm
-                             platform={platform.name}
-                             initialRevenue={platform.revenue}
-                             onClose={() => setEditingPlatform(null)}
-                             onSave={(updated) => {
-                               setPlatformData(prev =>
-                                 prev.map(p => p.name === updated.platform ? { ...p, revenue: updated.revenue } : p)
-                               );
-                             }}
-                           />
-                         )}
-                         {platform.error && (
-                           <div className="mt-2">
-                             <Badge variant="destructive" className="text-xs">
-                               API Error
-                             </Badge>
-                             <Button
-                               variant="link"
-                               size="sm"
-                               onClick={() => refreshPlatformTokens(platform.name)}
-                               className="ml-2 p-0 h-auto text-xs"
-                             >
-                               Refresh Token
-                             </Button>
-                           </div>
-                         )}
-                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={platform.growth >= 0 ? "default" : "destructive"}>
-                          {platform.growth >= 0 ? '+' : ''}{platform.growth}%
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
+          </div>
+        </header>
 
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="max-w-md w-full mx-4">
+        {/* Main Content */}
+        <main className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-7xl">
+          {/* API Issues Warning */}
+          {(dataStatus === 'mock' || dataStatus === 'api_error') && connectedPlatforms.length > 0 && (
+            <Card className="mb-6 border-yellow-200 bg-yellow-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-yellow-800">
+                      API Connection Issue
+                    </h3>
+                    <div className="mt-2 text-sm text-yellow-700">
+                      <p>
+                        Your platforms are connected but we're having trouble fetching data from the APIs. 
+                        This could be due to API quota limits, network issues, or your channels being new with no data yet.
+                        The graphs below show demo data until this is resolved.
+                      </p>
+                      {platformData.some(p => p.error) && (
+                        <p className="mt-2 text-xs text-yellow-600">
+                          💡 <strong>Tip:</strong> Some APIs have daily quotas. Try refreshing later or check your platform settings.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Success Message for Real Data */}
+          {dataStatus === 'real' && connectedPlatforms.length > 0 && (
+            <Card className="mb-6 border-green-200 bg-green-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-green-800">
+                      Real Data Connected
+                    </h3>
+                    <div className="mt-2 text-sm text-green-700">
+                      <p>
+                        Your platform data is being fetched from the actual APIs. 
+                        {platformData.some(p => (p.subscribers || 0) === 0 && (p.followers || 0) === 0 && (p.views || 0) === 0) 
+                          ? ' Some platforms show zero values because they are new or have no activity yet. This is normal for new channels!' 
+                          : ' All data is up to date!'}
+                      </p>
+                      {platformData.some(p => p.error) && (
+                        <p className="mt-2 text-xs text-green-600">
+                          ⚠️ <strong>Note:</strong> Some platforms have API errors but we're still showing available data.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {analyticsData ? formatCurrency(analyticsData.totalRevenue) : '$0'}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Growth</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {analyticsData ? `${analyticsData.totalGrowth}%` : '0%'}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Followers</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {platformData.reduce((sum, platform) => sum + (platform.followers || platform.subscribers || 0), 0).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Views</CardTitle>
+                <Eye className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {platformData.reduce((sum, platform) => sum + (platform.views || platform.viewers || 0), 0).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-10">
+            {/* Revenue Trend */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue Trend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {analyticsData?.totalRevenue === 0 && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    📊 Revenue trend shows zero because your channels are new. Start creating content to see your revenue grow!
+                  </p>
+                )}
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={analyticsData?.monthlyTrend.map((value, index) => ({ month: `Month ${index + 1}`, revenue: value })) || []}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
+                    <Line type="monotone" dataKey="revenue" stroke="#2176ae" strokeWidth={3} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Platform Breakdown */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue by Platform</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {analyticsData?.totalRevenue === 0 && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    📊 Chart shows follower distribution since revenue is zero. Focus on growing your audience first!
+                  </p>
+                )}
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={analyticsData?.platformBreakdown || []}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ platform, percentage }: { platform: string; percentage: number }) => `${platform} ${percentage}%`}
+                      outerRadius={90}
+                      fill="#2176ae"
+                      dataKey="percentage"
+                    >
+                      {analyticsData?.platformBreakdown.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={["#2176ae", "#53fc18", "#ffe066", "#1a2639", "#f4faff"][index % 5]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Platform Performance */}
+          <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Settings</CardTitle>
+                <CardTitle>Platform Performance</CardTitle>
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowSettings(false)}
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('http://localhost:4000/api/platforms', {
+                        credentials: 'include',
+                        cache: 'no-cache'
+                      });
+                      const data = await response.json();
+                      setPlatformData(data);
+                    } catch (error) {
+                      console.error('Error refreshing data:', error);
+                    }
+                  }}
                 >
-                  ✕
+                  Refresh Data
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Connected Accounts</h3>
-                <div className="space-y-3">
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-border">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Platform</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Followers/Subscribers</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Views/Viewers</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Revenue</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Growth</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-background divide-y divide-border">
+                    {platformData.filter(platform => platform && typeof platform === 'object' && platform.name).map((platform) => (
+                      <tr key={platform.name} className="hover:bg-muted/50 transition">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-8 w-8 flex items-center justify-center">
+                              {getPlatformIcon(platform.name)}
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium">{platform.name}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
+                          {formatNumber(platform.followers || platform.subscribers || 0)}
+                        </td>
+                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
+                           {formatNumber(platform.views || platform.viewers || 0)}
+                         </td>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
+                           {formatCurrency(platform.revenue)}
+                           <Button
+                             variant="link"
+                             size="sm"
+                             onClick={() => setEditingPlatform(platform.name)}
+                             className="ml-2 p-0 h-auto"
+                           >
+                             Edit
+                           </Button>
+                           {editingPlatform === platform.name && (
+                             <RevenueForm
+                               platform={platform.name}
+                               initialRevenue={platform.revenue}
+                               onClose={() => setEditingPlatform(null)}
+                               onSave={(updated) => {
+                                 setPlatformData(prev =>
+                                   prev.map(p => p.name === updated.platform ? { ...p, revenue: updated.revenue } : p)
+                                 );
+                               }}
+                             />
+                           )}
+                           {platform.error && (
+                             <div className="mt-2">
+                               <Badge variant="destructive" className="text-xs">
+                                 API Error
+                               </Badge>
+                               <Button
+                                 variant="link"
+                                 size="sm"
+                                 onClick={() => refreshPlatformTokens(platform.name)}
+                                 className="ml-2 p-0 h-auto text-xs"
+                               >
+                                 Refresh Token
+                               </Button>
+                             </div>
+                           )}
+                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge variant={platform.growth >= 0 ? "default" : "destructive"}>
+                            {platform.growth >= 0 ? '+' : ''}{platform.growth}%
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+
+        {/* Settings Modal */}
+        {showSettings && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="max-w-md w-full mx-4">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Settings</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSettings(false)}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Connected Accounts</h3>
+                  <div className="space-y-3">
                                      {/* YouTube */}
                    <div className="flex items-center justify-between p-3 border rounded-lg">
                      <div className="flex items-center space-x-3">
@@ -1052,6 +1048,7 @@ export default function DashboardPage() {
           console.log('❌ Real-time connection lost');
         }}
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 } 

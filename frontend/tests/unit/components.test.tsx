@@ -18,8 +18,10 @@ describe('HomePage Component', () => {
   test('renders homepage with correct content', () => {
     render(<HomePage />);
     
-    // Check for main heading
-    expect(screen.getByText('Track Your Creator Success')).toBeInTheDocument();
+    // Check for main heading - use a function to match split text
+    expect(screen.getByText((content, element) => {
+      return element?.textContent === 'Track YourCreator Success';
+    })).toBeInTheDocument();
     
     // Check for description
     expect(screen.getByText(/Networthy is your all-in-one platform/)).toBeInTheDocument();
@@ -99,7 +101,9 @@ describe('HomePage Component', () => {
     render(<HomePage />);
     
     // Should still render the page even if authentication fails
-    expect(screen.getByText('Track Your Creator Success')).toBeInTheDocument();
+    expect(screen.getByText((content, element) => {
+      return element?.textContent === 'Track YourCreator Success';
+    })).toBeInTheDocument();
   });
 });
 
