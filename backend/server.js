@@ -297,10 +297,19 @@ app.post("/api/auth/login", async (req, res) => {
     // Generate a simple token for development (base64 encoded email:timestamp)
     const token = Buffer.from(`${user.email}:${Date.now()}`).toString('base64');
     
+    // Set HTTP-only cookie for production security
+    res.cookie('authToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'strict', // Stricter than 'lax' for better security
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: '/'
+    });
+    
     res.json({ 
       success: true, 
       user: { email: user.email, id: user.id },
-      token: token,
+      token: token, // Still return token for localStorage fallback
       message: 'Login successful' 
     });
   } catch (error) {
@@ -312,13 +321,13 @@ app.post("/api/auth/login", async (req, res) => {
 // Get current user
 app.get("/api/auth/me", async (req, res) => {
   if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    return res.status(401).json({ authenticated: false, error: 'Not authenticated' });
   }
   
   try {
     const user = await findUserById(req.session.user.id);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ authenticated: false, error: 'User not found' });
     }
   
     console.log('User data for /api/auth/me:', {
@@ -327,6 +336,7 @@ app.get("/api/auth/me", async (req, res) => {
     });
   
     res.json({
+      authenticated: true,
       user: {
         id: user.id,
         email: user.email,
@@ -335,7 +345,7 @@ app.get("/api/auth/me", async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting user:', error);
-    res.status(500).json({ error: 'Failed to get user data' });
+    res.status(500).json({ authenticated: false, error: 'Failed to get user data' });
   }
 });
 
@@ -409,6 +419,15 @@ app.get("/api/auth/logout", (req, res) => {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax'
       });
+      
+      // Clear the auth token cookie
+      res.clearCookie('authToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/'
+      });
+      
       res.json({ success: true });
     }
   });
