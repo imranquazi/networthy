@@ -1209,6 +1209,61 @@ app.get("/api/analytics", async (req, res) => {
   }
 });
 
+// Recalculate analytics with custom platform data
+app.post("/api/analytics", async (req, res) => {
+  try {
+    const { platforms } = req.body;
+    
+    if (!platforms || !Array.isArray(platforms)) {
+      return res.status(400).json({ error: 'Platforms data is required and must be an array' });
+    }
+    
+    // Get user authentication (session or token-based)
+    let user = null;
+    
+    // Try session-based authentication first
+    if (req.session && req.session.user && req.session.user.email) {
+      user = await findUserByEmail(req.session.user.email);
+    } else {
+      // Try token-based authentication
+      const authHeader = req.headers.authorization;
+      const tokenParam = req.query.token;
+      
+      let token = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      } else if (tokenParam) {
+        token = tokenParam;
+      }
+      
+      if (token) {
+        try {
+          const decoded = Buffer.from(token, 'base64').toString('utf-8');
+          const [email, timestamp] = decoded.split(':');
+          
+          const tokenTime = parseInt(timestamp);
+          const currentTime = Date.now();
+          if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+            user = await findUserByEmail(email);
+          }
+        } catch (decodeError) {
+          console.error('Token decode error:', decodeError);
+        }
+      }
+    }
+    
+    const userId = user ? user.id : null;
+    
+    // Calculate analytics based on the provided platform data
+    const analytics = await platformManager.calculateAnalytics(platforms, userId);
+    
+    res.json(analytics);
+  } catch (error) {
+    console.error('Error recalculating analytics:', error);
+    res.status(500).json({ error: 'Failed to recalculate analytics data' });
+  }
+});
+
 // Manual data refresh
 app.post("/api/refresh", async (req, res) => {
   try {

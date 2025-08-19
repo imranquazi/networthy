@@ -49,9 +49,30 @@ interface RevenueFormProps {
 
 function RevenueForm({ platform, initialRevenue, onClose, onSave }: RevenueFormProps) {
   const [revenue, setRevenue] = useState(initialRevenue);
+  const [error, setError] = useState('');
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Number(e.target.value);
+    
+    // Prevent negative numbers
+    if (value < 0) {
+      setError('Revenue cannot be negative');
+      return;
+    }
+    
+    setError('');
+    setRevenue(value);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate revenue is not negative
+    if (revenue < 0) {
+      setError('Revenue cannot be negative');
+      return;
+    }
+    
     const updated = {
       platform,
       revenue: Number(revenue),
@@ -75,14 +96,22 @@ function RevenueForm({ platform, initialRevenue, onClose, onSave }: RevenueFormP
 
   return (
     <form onSubmit={handleSubmit} className="mt-2 space-y-3">
-      <Input
-        type="number"
-        value={revenue}
-        onChange={(e) => setRevenue(Number(e.target.value))}
-        className="w-full"
-      />
+      <div>
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={revenue}
+          onChange={handleInputChange}
+          className={`w-full ${error ? 'border-red-500' : ''}`}
+          placeholder="Enter revenue amount"
+        />
+        {error && (
+          <p className="text-red-500 text-xs mt-1">{error}</p>
+        )}
+      </div>
       <div className="flex space-x-2">
-        <Button type="submit" size="sm">Save</Button>
+        <Button type="submit" size="sm" disabled={revenue < 0}>Save</Button>
         <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
       </div>
     </form>
@@ -508,18 +537,14 @@ export default function DashboardPage() {
           <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
             <div className="flex items-center gap-4">
               <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                <div className="relative w-10 h-10">
+                <div>
                   <Image 
                     src="/assets/Asset 1.png" 
                     alt="Networthy Logo" 
-                    fill 
-                    sizes="40px" 
+                    width={175}
+                    height={175}
                     className="object-contain" 
                   />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold">Networthy</h1>
-                  <p className="text-sm text-muted-foreground">Creator Success Platform</p>
                 </div>
               </Link>
             </div>
@@ -728,24 +753,39 @@ export default function DashboardPage() {
                     📊 Chart shows follower distribution since revenue is zero. Focus on growing your audience first!
                   </p>
                 )}
+                {!analyticsData?.platformBreakdown && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    📊 Loading chart data...
+                  </p>
+                )}
                 <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={analyticsData?.platformBreakdown || []}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ platform, percentage }: { platform: string; percentage: number }) => `${platform} ${percentage}%`}
-                      outerRadius={90}
-                      fill="#2176ae"
-                      dataKey="percentage"
-                    >
-                      {analyticsData?.platformBreakdown.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={["#2176ae", "#53fc18", "#ffe066", "#1a2639", "#f4faff"][index % 5]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
+                  {(() => {
+                    console.log('Chart render - analyticsData:', analyticsData);
+                    console.log('Chart render - platformBreakdown:', analyticsData?.platformBreakdown);
+                    return analyticsData?.platformBreakdown && analyticsData.platformBreakdown.length > 0 ? (
+                    <PieChart>
+                      <Pie
+                        data={analyticsData.platformBreakdown}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ platform, percentage }: { platform: string; percentage: number }) => `${platform} ${percentage}%`}
+                        outerRadius={90}
+                        fill="#2176ae"
+                        dataKey="percentage"
+                      >
+                        {analyticsData.platformBreakdown.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={["#2176ae", "#53fc18", "#ffe066", "#1a2639", "#f4faff"][index % 5]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-muted-foreground">No data available for chart</p>
+                    </div>
+                  );
+                  })()}
                 </ResponsiveContainer>
               </CardContent>
             </Card>
@@ -820,10 +860,39 @@ export default function DashboardPage() {
                                platform={platform.name}
                                initialRevenue={platform.revenue}
                                onClose={() => setEditingPlatform(null)}
-                               onSave={(updated) => {
-                                 setPlatformData(prev =>
-                                   prev.map(p => p.name === updated.platform ? { ...p, revenue: updated.revenue } : p)
-                                 );
+                               onSave={async (updated) => {
+                                 // Update platform data and recalculate analytics
+                                 setPlatformData(prev => {
+                                   const updatedPlatformData = prev.map(p => 
+                                     p.name === updated.platform ? { ...p, revenue: updated.revenue } : p
+                                   );
+                                   
+                                   // Recalculate analytics data for the chart
+                                   (async () => {
+                                     try {
+                                       const response = await fetch('http://localhost:4000/api/analytics', {
+                                         method: 'POST',
+                                         headers: {
+                                           'Content-Type': 'application/json',
+                                         },
+                                         body: JSON.stringify({ platforms: updatedPlatformData }),
+                                         credentials: 'include'
+                                       });
+                                       
+                                       if (response.ok) {
+                                         const newAnalytics = await response.json();
+                                         console.log('Updated analytics data:', newAnalytics);
+                                         setAnalyticsData(newAnalytics);
+                                       } else {
+                                         console.error('Failed to update analytics:', response.status);
+                                       }
+                                     } catch (error) {
+                                       console.error('Error updating analytics:', error);
+                                     }
+                                   })();
+                                   
+                                   return updatedPlatformData;
+                                 });
                                }}
                              />
                            )}
