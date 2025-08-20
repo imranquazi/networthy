@@ -148,78 +148,50 @@ export default function DashboardPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
   const [dataStatus, setDataStatus] = useState<'mock' | 'real' | 'loading' | 'api_error'>('loading');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
 
   const fetchData = useCallback(async () => {
+    if (isFetching) return; // Prevent multiple simultaneous calls
+    setIsFetching(true);
+    
     try {
-      // Check authentication status - try token first, then session
+      // Simple authentication check
       const token = localStorage.getItem('authToken');
       let authRes, authData;
       
       try {
         if (token) {
-          // Try token-based auth
-          try {
-            authRes = await fetch('http://localhost:4000/api/auth/status-token', {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            });
-            authData = await authRes.json();
-          } catch (error) {
-            console.log('Token auth failed, trying session auth...', error);
-          }
+          // Try token-based auth first
+          authRes = await fetch('http://localhost:4000/api/auth/status-token', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          authData = await authRes.json();
         }
         
         if (!token || !authData?.authenticated) {
           // Fallback to session-based auth
-          try {
-            authRes = await fetch('http://localhost:4000/api/auth/me', {
-              credentials: 'include'
-            });
-            authData = await authRes.json();
-          } catch (error) {
-            console.log('Session auth failed, but not redirecting immediately...', error);
-            setAuthStatus({ authenticated: false, user: null });
-            setLoading(false);
-            return;
-          }
+          authRes = await fetch('http://localhost:4000/api/auth/me', {
+            credentials: 'include'
+          });
+          authData = await authRes.json();
         }
         
-        if (!authRes) {
-          console.log('No auth response, but not redirecting immediately...');
+        if (authRes && authRes.ok && authData.authenticated) {
+          setAuthStatus({ authenticated: true, user: authData.user });
+          // Set connected platforms if available
+          if (authData.user && authData.user.platform) {
+            setConnectedPlatforms(authData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
+          }
+        } else {
           setAuthStatus({ authenticated: false, user: null });
           setLoading(false);
           return;
         }
       } catch (error) {
         console.error('Authentication failed:', error);
-        setAuthStatus({ authenticated: false, user: null });
-        setLoading(false);
-        return;
-      }
-      
-      if (authRes.ok && authData.authenticated) {
-        setAuthStatus({ authenticated: true, user: authData.user });
-        // Check connected platforms for this user using token authentication
-        const authToken = localStorage.getItem('authToken');
-        if (authToken) {
-          try {
-            const connectedPlatformsRes = await fetch('http://localhost:4000/api/auth/status-token', {
-              headers: {
-                'Authorization': `Bearer ${authToken}`
-              }
-            });
-            if (connectedPlatformsRes.ok) {
-              const userData = await connectedPlatformsRes.json();
-              if (userData.user && userData.user.platform) {
-                setConnectedPlatforms(userData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
-              }
-            }
-          } catch (error) {
-            console.error('Error fetching connected platforms:', error);
-          }
-        }
-      } else {
         setAuthStatus({ authenticated: false, user: null });
         setLoading(false);
         return;
@@ -236,13 +208,8 @@ export default function DashboardPage() {
         alert(`Successfully connected ${platform}! Your data will appear in the dashboard.`);
       }
 
-      // Force refresh platform data if user has connected platforms
-      const forceRefresh = connectedPlatforms.length > 0;
-      const refreshParam = forceRefresh ? '?refresh=true' : '';
-      
-      if (forceRefresh) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+      // Don't force refresh to prevent infinite loops
+      const refreshParam = '';
       
       // Use token-based authentication for API calls
       const authToken = localStorage.getItem('authToken');
@@ -286,26 +253,7 @@ export default function DashboardPage() {
       console.log('Platform data received:', platforms);
       console.log('Connected platforms:', connectedPlatforms);
       
-      // Check connected platforms again after getting platform data
-      let currentConnectedPlatforms = connectedPlatforms;
-      if (authToken) {
-        try {
-          const connectedPlatformsRes = await fetch('http://localhost:4000/api/auth/status-token', {
-            headers: {
-              'Authorization': `Bearer ${authToken}`
-            }
-          });
-          if (connectedPlatformsRes.ok) {
-            const userData = await connectedPlatformsRes.json();
-            if (userData.user && userData.user.platform) {
-              currentConnectedPlatforms = userData.user.platform.map((p: { name: string }) => p.name.toLowerCase());
-              console.log('Updated connected platforms:', currentConnectedPlatforms);
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching connected platforms:', error);
-        }
-      }
+
       
       // Defensive check: ensure platforms is an array and has correct structure
       if (Array.isArray(platforms)) {
@@ -326,7 +274,7 @@ export default function DashboardPage() {
         }
         
         setPlatformData(validPlatforms);
-        // Determine if data is real or mock based on platform data
+        // Simplified logic: just check if data is mock or not
         const hasRealData = platforms.some((platform: PlatformData) => {
           const isMockData = (
             (platform.name === 'YouTube' && platform.subscribers === 125000 && platform.views === 2500000 && platform.revenue === 1200) ||
@@ -334,67 +282,18 @@ export default function DashboardPage() {
             (platform.name === 'TikTok' && platform.followers === 89000 && platform.views === 1200000 && platform.revenue === 430)
           );
           
-          const hasApiError = platform.error && typeof platform.error === 'string';
-          
-          const allValuesZero = (
-            (platform.subscribers === 0 || platform.subscribers === undefined) &&
-            (platform.followers === 0 || platform.followers === undefined) &&
-            (platform.views === 0 || platform.views === undefined) &&
-            (platform.viewers === 0 || platform.viewers === undefined) &&
-            (platform.revenue === 0 || platform.revenue === undefined)
-          );
-          
-          console.log(`Platform ${platform.name}:`, {
-            isMockData,
-            hasApiError,
-            allValuesZero,
-            connectedPlatforms: currentConnectedPlatforms.length,
-            platform
-          });
-          
-          // If user has connected platforms, consider it real data even with API errors
-          // This means the user has actually connected platforms, just needs token refresh
-          if (currentConnectedPlatforms.length > 0) {
-            const result = !isMockData; // Real data if not mock, regardless of API errors
-            console.log(`Connected platforms detected, ${platform.name} is ${result ? 'real' : 'mock'} data`);
-            return result;
-          }
-          
-          // For users without connected platforms, use the original logic
-          const result = !isMockData && !hasApiError && !allValuesZero;
-          console.log(`No connected platforms, ${platform.name} is ${result ? 'real' : 'mock'} data`);
-          return result;
+          return !isMockData;
         });
         
-        if (connectedPlatforms.length > 0 && !hasRealData && !refreshParam.includes('retry')) {
-          console.log('Detected mock data for authenticated user, retrying...');
-          setTimeout(() => {
-            const retryUrl = new URL(window.location.href);
-            retryUrl.searchParams.set('retry', 'true');
-            window.history.replaceState({}, document.title, retryUrl.toString());
-            fetchData();
-          }, 1000);
-          return;
-        }
+
 
         setPlatformData(platforms);
         setAnalyticsData(analytics);
         
-        console.log('Final status decision:', {
-          hasRealData,
-          connectedPlatformsLength: currentConnectedPlatforms.length,
-          platforms: platforms
-        });
-        
+        // Simple status setting
         if (hasRealData) {
-          console.log('Setting status to: real');
           setDataStatus('real');
-        } else if (currentConnectedPlatforms.length > 0) {
-          // User has connected platforms but API calls are failing
-          console.log('Setting status to: api_error');
-          setDataStatus('api_error');
         } else {
-          console.log('Setting status to: mock');
           setDataStatus('mock');
         }
       } else {
@@ -408,8 +307,10 @@ export default function DashboardPage() {
       console.error('Error fetching data:', error);
       setLoading(false);
       setDataStatus('mock');
+    } finally {
+      setIsFetching(false);
     }
-  }, [connectedPlatforms]);
+  }, []); // Remove connectedPlatforms dependency to prevent infinite loops
 
   useEffect(() => {
     fetchData();
@@ -519,6 +420,74 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    // Prevent multiple simultaneous delete requests
+    if (isDeletingAccount) {
+      return;
+    }
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to delete your account? This action cannot be undone and will permanently remove all your data, including:\n\n' +
+      '• Your account information\n' +
+      '• All connected platform data\n' +
+      '• Historical analytics\n' +
+      '• Manual revenue entries\n' +
+      '• All authentication tokens\n\n' +
+      'This action is irreversible!'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+
+    try {
+      // Try session-based authentication first
+      let response = await fetch('http://localhost:4000/api/auth/delete-account', {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      // If session auth fails, try token-based authentication
+      if (response.status === 401) {
+        const authToken = localStorage.getItem('authToken');
+        if (authToken) {
+          response = await fetch(`http://localhost:4000/api/auth/delete-account?token=${encodeURIComponent(authToken)}`, {
+            method: 'DELETE'
+          });
+        }
+      }
+
+      if (response.ok) {
+        // Clear all local storage and session storage
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Clear all cookies
+        document.cookie.split(";").forEach(function(c) { 
+          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+        });
+
+        // Show success message
+        alert('Account deleted successfully. You will be redirected to the homepage.');
+        
+        // Redirect to homepage
+        window.location.href = '/';
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete account');
+      }
+    } catch (error) {
+      console.error('Delete account error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to delete account: ${errorMessage}`);
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -527,10 +496,20 @@ export default function DashboardPage() {
     );
   }
 
+  // Simple authentication check - redirect to login if not authenticated
+  if (!authStatus?.authenticated) {
+    // Use window.location to avoid React Router conflicts
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+      return null;
+    }
+    return null;
+  }
+
   // Remove the old authentication check since we're using ProtectedRoute now
 
   return (
-    <ProtectedRoute>
+    // <ProtectedRoute>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
@@ -554,10 +533,10 @@ export default function DashboardPage() {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Home
               </Link>
-              {user && (
+              {authStatus?.authenticated && authStatus.user && (
                 <div className="flex items-center space-x-2 text-sm">
-                  <span className="text-muted-foreground">Connected to {Array.isArray(user.platform) ? user.platform.map(p => p.name).join(', ') : user.platform}:</span>
-                  <span className="font-medium">{user.email}</span>
+                  <span className="text-muted-foreground">Signed in as:</span>
+                  <span className="font-medium">{authStatus.user.email}</span>
                 </div>
               )}
               {dataStatus === 'mock' && (
@@ -1097,6 +1076,28 @@ export default function DashboardPage() {
                   Close
                 </Button>
               </div>
+
+              {/* Danger Zone */}
+              <div className="pt-6 border-t border-red-200">
+                <h3 className="text-lg font-semibold text-red-600 mb-4">Danger Zone</h3>
+                <div className="space-y-3">
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <h4 className="font-medium text-red-800 mb-2">Delete Account</h4>
+                    <p className="text-sm text-red-600 mb-3">
+                      This action will permanently delete your account and all associated data. 
+                      This cannot be undone.
+                    </p>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDeleteAccount}
+                      disabled={isDeletingAccount}
+                      className="w-full"
+                    >
+                      {isDeletingAccount ? 'Deleting Account...' : 'Delete My Account'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -1107,7 +1108,8 @@ export default function DashboardPage() {
         onUpdate={(update) => {
           console.log('🔄 Real-time update received:', update);
           if (update.type === 'platform_update') {
-            window.location.reload();
+            // Instead of reloading, just refetch data
+            fetchData();
           }
         }}
         onConnect={() => {
@@ -1118,6 +1120,6 @@ export default function DashboardPage() {
         }}
       />
       </div>
-    </ProtectedRoute>
+    // </ProtectedRoute>
   );
 } 

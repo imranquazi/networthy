@@ -119,4 +119,46 @@ export async function getUserPlatforms(userId) {
     console.error('Error getting user platforms:', error.message);
     return [];
   }
+}
+
+// Delete user and all associated data
+export async function deleteUser(userId, userEmail) {
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Delete from user_tokens table (uses email as user_id)
+      try {
+        await client.query('DELETE FROM user_tokens WHERE user_id = $1', [userEmail]);
+        console.log(`Deleted user tokens for email: ${userEmail}`);
+      } catch (error) {
+        console.log(`Error deleting from user_tokens: ${error.message}`);
+      }
+      
+      // Delete from platform_history table (uses numeric user_id)
+      try {
+        await client.query('DELETE FROM platform_history WHERE user_id = $1', [userId]);
+        console.log(`Deleted platform history for user: ${userId}`);
+      } catch (error) {
+        console.log(`Error deleting from platform_history: ${error.message}`);
+      }
+      
+
+      
+      // Finally, delete the user from users table
+      const result = await client.query('DELETE FROM users WHERE id = $1 RETURNING id', [userId]);
+      await client.query('COMMIT');
+      
+      return result.rows.length > 0;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error deleting user:', error.message);
+    return false;
+  }
 } 

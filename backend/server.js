@@ -14,7 +14,7 @@ import session from "express-session";
 
 import PlatformManager from "./services/platformManager.js";
 import { googleClient, setupTwitchPassport, getTikTokToken, storeToken, getToken } from "./services/authService.js";
-import { createUser, findUserByEmail, findUserById, verifyUser, updateUserPlatforms, getUserPlatforms } from "./services/userService.js";
+import { createUser, findUserByEmail, findUserById, verifyUser, updateUserPlatforms, getUserPlatforms, deleteUser } from "./services/userService.js";
 import { google } from 'googleapis';
 
 dotenv.config();
@@ -431,6 +431,90 @@ app.get("/api/auth/logout", (req, res) => {
       res.json({ success: true });
     }
   });
+});
+
+// Delete account endpoint
+app.delete("/api/auth/delete-account", async (req, res) => {
+  try {
+    // Check if user is authenticated via session or token
+    let userEmail = null;
+    let userId = null;
+    
+    // First try session-based authentication
+    if (req.session.authenticated && req.session.user) {
+      userEmail = req.session.user.email;
+      userId = req.session.user.id;
+    } else {
+      // Try token-based authentication
+      const authHeader = req.headers.authorization;
+      const tokenParam = req.query.token;
+      
+      let token = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      } else if (tokenParam) {
+        token = tokenParam;
+      }
+      
+      if (token) {
+        try {
+          const decoded = Buffer.from(token, 'base64').toString('utf-8');
+          const [email, timestamp] = decoded.split(':');
+          
+          // Check if token is not expired (24 hours)
+          const tokenTime = parseInt(timestamp);
+          const currentTime = Date.now();
+          if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+            userEmail = email;
+            // Find user ID from database
+            const user = await findUserByEmail(email);
+            if (user) {
+              userId = user.id;
+            }
+          }
+        } catch (decodeError) {
+          console.error('Token decode error:', decodeError);
+        }
+      }
+    }
+    
+    if (!userEmail || !userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Delete user and all associated data
+    const success = await deleteUser(userId, userEmail);
+    
+    if (success) {
+      // Destroy session
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Session destroy error:', err);
+        }
+      });
+      
+      // Clear all cookies
+      res.clearCookie('connect.sid', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
+      });
+      
+      res.clearCookie('authToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/'
+      });
+      
+      res.json({ success: true, message: 'Account deleted successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete account' });
+    }
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Delete account failed' });
+  }
 });
 
 // Google OAuth (YouTube)

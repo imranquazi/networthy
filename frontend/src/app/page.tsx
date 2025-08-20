@@ -26,6 +26,22 @@ export default function HomePage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Try session-based auth first
+        try {
+          const response = await fetch('http://localhost:4000/api/auth/me', {
+            credentials: 'include'
+          });
+          const data = await response.json();
+          
+          if (data.authenticated) {
+            setAuthStatus({ authenticated: true, user: data.user });
+            return;
+          }
+        } catch (error) {
+          console.log('Session auth failed:', error);
+        }
+
+        // Fallback to token-based auth
         const token = localStorage.getItem('authToken');
         if (token) {
           try {
@@ -54,9 +70,11 @@ export default function HomePage() {
       }
     };
 
+    // Check auth immediately and then again after a short delay
+    checkAuth();
     const timer = setTimeout(() => {
       checkAuth();
-    }, 500);
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -139,7 +157,7 @@ export default function HomePage() {
           
           <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
             <Button size="lg" asChild>
-              <Link href="/register">
+              <Link href={authStatus?.authenticated ? "/dashboard" : "/register"}>
                 {authStatus?.authenticated ? "Go to Dashboard" : "Get Started"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
