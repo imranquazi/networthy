@@ -94,7 +94,7 @@ export default function HomePage() {
                   alt="Networthy Logo" 
                   width={175}
                   height={175}
-                  className="object-contain" 
+                  className="object-contain w-auto h-auto" 
                 />
               </div>
             </Link>

@@ -24,7 +24,6 @@ import {
   ArrowLeft,
   RefreshCw
 } from 'lucide-react';
-import RealTimeUpdates from '@/components/RealTimeUpdates';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/hooks/useAuth';
 import { 
@@ -376,20 +375,34 @@ export default function DashboardPage() {
 
   const refreshPlatformTokens = async (platform: string) => {
     try {
-      const authToken = localStorage.getItem('authToken');
-      if (!authToken) {
+      // Check if still loading or not authenticated
+      if (loading) {
+        alert('Please wait while we check your authentication status...');
+        return;
+      }
+      
+      if (!authStatus?.authenticated) {
         alert('Please refresh the page and make sure you\'re logged in');
         return;
       }
 
+      // Try to get auth token, but don't require it
+      const authToken = localStorage.getItem('authToken');
+
       // Use the existing OAuth endpoints for token refresh
       let oauthUrl = '';
       if (platform.toLowerCase() === 'youtube') {
-        oauthUrl = `http://localhost:4000/api/auth/google?token=${encodeURIComponent(authToken)}`;
+        oauthUrl = authToken 
+          ? `http://localhost:4000/api/auth/google?token=${encodeURIComponent(authToken)}`
+          : 'http://localhost:4000/api/auth/google';
       } else if (platform.toLowerCase() === 'twitch') {
-        oauthUrl = `http://localhost:4000/api/auth/twitch?token=${encodeURIComponent(authToken)}`;
+        oauthUrl = authToken 
+          ? `http://localhost:4000/api/auth/twitch?token=${encodeURIComponent(authToken)}`
+          : 'http://localhost:4000/api/auth/twitch';
       } else if (platform.toLowerCase() === 'tiktok') {
-        oauthUrl = `http://localhost:4000/api/auth/tiktok?token=${encodeURIComponent(authToken)}`;
+        oauthUrl = authToken 
+          ? `http://localhost:4000/api/auth/tiktok?token=${encodeURIComponent(authToken)}`
+          : 'http://localhost:4000/api/auth/tiktok';
       } else {
         alert('Unsupported platform for token refresh');
         return;
@@ -487,6 +500,8 @@ export default function DashboardPage() {
       setIsDeletingAccount(false);
     }
   };
+
+
 
   if (loading) {
     return (
@@ -957,12 +972,31 @@ export default function DashboardPage() {
                          size="sm"
                          onClick={async () => {
                            try {
-                             const authToken = localStorage.getItem('authToken');
-                             if (!authToken) {
+                             console.log('Auth status:', authStatus); // Debug log
+                             
+                             // Check if still loading or not authenticated
+                             if (loading) {
+                               console.log('Still loading, please wait...'); // Debug log
+                               alert('Please wait while we check your authentication status...');
+                               return;
+                             }
+                             
+                             if (!authStatus?.authenticated) {
+                               console.log('User not authenticated, authStatus:', authStatus); // Debug log
                                alert('Please refresh the page and make sure you\'re logged in');
                                return;
                              }
-                             window.location.href = `http://localhost:4000/api/auth/google?token=${encodeURIComponent(authToken)}`;
+                             
+                             // Try to get auth token, but don't require it
+                             const authToken = localStorage.getItem('authToken');
+                             console.log('Auth token found:', !!authToken); // Debug log
+                             
+                             const oauthUrl = authToken 
+                               ? `http://localhost:4000/api/auth/google?token=${encodeURIComponent(authToken)}`
+                               : 'http://localhost:4000/api/auth/google';
+                             
+                             console.log('Redirecting to:', oauthUrl); // Debug log
+                             window.location.href = oauthUrl;
                            } catch (error) {
                              console.error('Auth check failed:', error);
                              alert('Please refresh the page and try again');
@@ -1007,12 +1041,24 @@ export default function DashboardPage() {
                          size="sm"
                          onClick={async () => {
                            try {
-                             const authToken = localStorage.getItem('authToken');
-                             if (!authToken) {
+                             // Check if still loading or not authenticated
+                             if (loading) {
+                               alert('Please wait while we check your authentication status...');
+                               return;
+                             }
+                             
+                             if (!authStatus?.authenticated) {
                                alert('Please refresh the page and make sure you\'re logged in');
                                return;
                              }
-                             window.location.href = `http://localhost:4000/api/auth/twitch?token=${encodeURIComponent(authToken)}`;
+                             
+                             // Try to get auth token, but don't require it
+                             const authToken = localStorage.getItem('authToken');
+                             const oauthUrl = authToken 
+                               ? `http://localhost:4000/api/auth/twitch?token=${encodeURIComponent(authToken)}`
+                               : 'http://localhost:4000/api/auth/twitch';
+                             
+                             window.location.href = oauthUrl;
                            } catch (error) {
                              console.error('Auth check failed:', error);
                              alert('Please refresh the page and try again');
@@ -1041,12 +1087,24 @@ export default function DashboardPage() {
                         size="sm"
                         onClick={async () => {
                           try {
-                            const authToken = localStorage.getItem('authToken');
-                            if (!authToken) {
+                            // Check if still loading or not authenticated
+                            if (loading) {
+                              alert('Please wait while we check your authentication status...');
+                              return;
+                            }
+                            
+                            if (!authStatus?.authenticated) {
                               alert('Please refresh the page and make sure you\'re logged in');
                               return;
                             }
-                            window.location.href = `http://localhost:4000/api/auth/tiktok?token=${encodeURIComponent(authToken)}`;
+                            
+                            // Try to get auth token, but don't require it
+                            const authToken = localStorage.getItem('authToken');
+                            const oauthUrl = authToken 
+                              ? `http://localhost:4000/api/auth/tiktok?token=${encodeURIComponent(authToken)}`
+                              : 'http://localhost:4000/api/auth/tiktok';
+                            
+                            window.location.href = oauthUrl;
                           } catch (error) {
                             console.error('Auth check failed:', error);
                             alert('Please refresh the page and try again');
@@ -1102,22 +1160,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Real-time Updates Component */}
-      <RealTimeUpdates 
-        onUpdate={(update) => {
-          console.log('🔄 Real-time update received:', update);
-          if (update.type === 'platform_update') {
-            // Instead of reloading, just refetch data
-            fetchData();
-          }
-        }}
-        onConnect={() => {
-          console.log('✅ Real-time connection established');
-        }}
-        onDisconnect={() => {
-          console.log('❌ Real-time connection lost');
-        }}
-      />
+
       </div>
     // </ProtectedRoute>
   );

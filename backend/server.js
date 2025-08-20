@@ -11,8 +11,15 @@ import path from "path";
 import { fileURLToPath } from 'url';
 import passport from "passport";
 import session from "express-session";
+import { Pool } from 'pg';
 
 import PlatformManager from "./services/platformManager.js";
+
+// Database connection
+const pool = new Pool({ 
+  connectionString: process.env.PG_CONNECTION_STRING,
+  ssl: { rejectUnauthorized: false }
+});
 import { googleClient, setupTwitchPassport, getTikTokToken, storeToken, getToken } from "./services/authService.js";
 import { createUser, findUserByEmail, findUserById, verifyUser, updateUserPlatforms, getUserPlatforms, deleteUser } from "./services/userService.js";
 import { google } from 'googleapis';
@@ -27,10 +34,44 @@ const app = express();
 
 // Simple request deduplication to prevent infinite loops
 const requestCache = new Map();
-const DEDUP_WINDOW = 2000; // 2 seconds
+const DEDUP_WINDOW = 500; // Reduce to 500ms for better responsiveness
 
 const deduplicateRequests = (req, res, next) => {
-  const userId = req.session?.user?.id || req.query.token || 'anonymous';
+  // Better user identification
+  let userId = 'anonymous';
+  
+  // Try to get user ID from session first
+  if (req.session?.user?.id) {
+    userId = req.session.user.id;
+  } else if (req.session?.user?.email) {
+    userId = req.session.user.email;
+  } else {
+    // Try to get from token in query or header
+    const authHeader = req.headers.authorization;
+    const tokenParam = req.query.token;
+    
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (tokenParam) {
+      token = tokenParam;
+    }
+    
+    if (token) {
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const [email, timestamp] = decoded.split(':');
+        const tokenTime = parseInt(timestamp);
+        const currentTime = Date.now();
+        if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+          userId = email;
+        }
+      } catch (decodeError) {
+        // Keep userId as 'anonymous'
+      }
+    }
+  }
+  
   const endpoint = req.path;
   const key = `${userId}:${endpoint}`;
   const now = Date.now();
@@ -38,7 +79,9 @@ const deduplicateRequests = (req, res, next) => {
   const lastRequest = requestCache.get(key);
   if (lastRequest && (now - lastRequest) < DEDUP_WINDOW) {
     console.log(`🔄 Deduplicating request: ${endpoint} for user ${userId} (${now - lastRequest}ms since last)`);
-    return res.status(429).json({ error: 'Request too frequent, please wait a moment' });
+    // Instead of blocking, just skip the request and let it proceed
+    // This prevents infinite loops while allowing legitimate requests
+    return next();
   }
   
   requestCache.set(key, now);
@@ -55,6 +98,43 @@ const deduplicateRequests = (req, res, next) => {
   
   next();
 };
+
+// Add platform-specific rate limiting
+const platformRateLimits = new Map();
+const PLATFORM_RATE_LIMITS = {
+  youtube: { maxCalls: 100, windowMs: 60 * 60 * 1000 }, // 100 calls per hour
+  twitch: { maxCalls: 800, windowMs: 60 * 60 * 1000 },  // 800 calls per hour
+  tiktok: { maxCalls: 200, windowMs: 60 * 60 * 1000 }   // 200 calls per hour
+};
+
+function checkPlatformRateLimit(platform) {
+  const now = Date.now();
+  const limit = PLATFORM_RATE_LIMITS[platform];
+  
+  if (!limit) return true; // No limit set
+  
+  if (!platformRateLimits.has(platform)) {
+    platformRateLimits.set(platform, { calls: 0, resetTime: now + limit.windowMs });
+  }
+  
+  const rateLimit = platformRateLimits.get(platform);
+  
+  // Reset if window has passed
+  if (now > rateLimit.resetTime) {
+    rateLimit.calls = 0;
+    rateLimit.resetTime = now + limit.windowMs;
+  }
+  
+  // Check if limit exceeded
+  if (rateLimit.calls >= limit.maxCalls) {
+    console.warn(`⚠️ Rate limit exceeded for ${platform}: ${rateLimit.calls}/${limit.maxCalls} calls`);
+    return false;
+  }
+  
+  // Increment call count
+  rateLimit.calls++;
+  return true;
+}
 
 // Security middleware
 app.use(helmet());
@@ -171,6 +251,28 @@ const userAnalyticsCache = new Map();
 const userLastUpdate = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Add platform-specific cache durations
+const PLATFORM_CACHE_DURATIONS = {
+  youtube: 10 * 60 * 1000, // 10 minutes (YouTube data changes less frequently)
+  twitch: 3 * 60 * 1000,   // 3 minutes (Twitch data changes more frequently)
+  tiktok: 5 * 60 * 1000    // 5 minutes (TikTok data changes moderately)
+};
+
+// Add cache validation function
+function isCacheValid(userId, platform = null) {
+  const lastUpdate = userLastUpdate.get(userId);
+  if (!lastUpdate) return false;
+  
+  const now = Date.now();
+  const cacheAge = now - lastUpdate;
+  
+  if (platform && PLATFORM_CACHE_DURATIONS[platform]) {
+    return cacheAge < PLATFORM_CACHE_DURATIONS[platform];
+  }
+  
+  return cacheAge < CACHE_DURATION;
+}
+
 // Default mock data for unauthenticated users
 const defaultMockData = [
   { name: "YouTube", subscribers: 125000, views: 2500000, revenue: 1200, growth: 12.5 },
@@ -182,86 +284,92 @@ const defaultMockData = [
 
 async function updatePlatformData(userId = null) {
   try {
-    let userConnectedPlatforms = [];
-    
-    // If userId is provided, get the user's connected platforms from database
-    if (userId) {
-      try {
-        const user = await findUserById(userId);
-        if (user && user.connected_platforms) {
-          userConnectedPlatforms = user.connected_platforms;
-        }
-      } catch (error) {
-        console.error('Error getting user platforms:', error);
-      }
-    }
-    
-    // Use user's connected platforms if available, otherwise fall back to global connectedPlatforms
-    const platformsToUse = userConnectedPlatforms.length > 0 ? userConnectedPlatforms : connectedPlatforms;
+    // Use global connected platforms
+    const platformsToUse = connectedPlatforms;
     
     if (platformsToUse.length === 0) {
-      // Return mock data if no platforms are connected
-      const mockData = [
-        { name: "YouTube", subscribers: 125000, views: 2500000, revenue: 1200, growth: 12.5 },
-        { name: "Twitch", followers: 45000, viewers: 180000, revenue: 850, growth: 8.2 },
-        { name: "TikTok", followers: 89000, views: 1200000, revenue: 430, growth: 15.7 }
-      ];
-      
-      if (userId) {
-        userPlatformCache.set(userId, mockData);
-        userLastUpdate.set(userId, Date.now());
-      }
+      console.log('📋 No platforms connected, skipping update');
+      return;
+    }
+
+    // Check if cache is still valid
+    if (isCacheValid('global')) {
+      console.log('📋 Using cached platform data');
       return;
     }
 
     console.log('🔄 Updating platform data from APIs...');
-    console.log('User connected platforms length:', platformsToUse.length);
-    const platformStats = await platformManager.getAllPlatformStats(platformsToUse, userId);
+    const platformStats = await platformManager.getAllPlatformStats(platformsToUse);
     
-    if (userId) {
-      userPlatformCache.set(userId, platformStats);
-      userLastUpdate.set(userId, Date.now());
-    }
+    // Update global cache
+    userPlatformCache.set('global', platformStats);
+    userLastUpdate.set('global', Date.now());
+    
     console.log('✅ Platform data updated successfully');
   } catch (error) {
     console.error('❌ Error updating platform data:', error.message);
-    // Keep existing cache if update fails
   }
 }
 
 async function updateAnalyticsData(userId = null) {
   try {
-    const userPlatformData = userId ? userPlatformCache.get(userId) : null;
+    const userPlatformData = userPlatformCache.get('global');
     
     if (!userPlatformData || userPlatformData.length === 0) {
-      const emptyAnalytics = {
-        totalRevenue: 0,
-        totalGrowth: 0,
-        topPlatform: "None",
-        monthlyTrend: [0, 0, 0, 0, 0, 0],
-        platformBreakdown: []
-      };
-      
-      if (userId) {
-        userAnalyticsCache.set(userId, emptyAnalytics);
-      }
+      console.log('📋 No platform data available for analytics');
       return;
     }
 
-    const analytics = await platformManager.calculateAnalytics(userPlatformData, userId);
+    const analytics = await platformManager.calculateAnalytics(userPlatformData);
+    userAnalyticsCache.set('global', analytics);
     
-    if (userId) {
-      userAnalyticsCache.set(userId, analytics);
-    }
+    console.log('✅ Analytics data updated successfully');
   } catch (error) {
     console.error('❌ Error updating analytics:', error.message);
   }
 }
 
-// Schedule data updates
+
+
+// Schedule data updates with smart intervals
 cron.schedule('*/5 * * * *', async () => {
-  await updatePlatformData();
-  await updateAnalyticsData();
+  console.log('⏰ Scheduled data update started...');
+  
+  try {
+    // Simple approach: just update global platform data
+    await updatePlatformData();
+    await updateAnalyticsData();
+  } catch (error) {
+    console.error('❌ Error in scheduled update:', error);
+  }
+});
+
+// Add cache cleanup function
+function cleanupExpiredCache() {
+  const now = Date.now();
+  const maxCacheAge = 24 * 60 * 60 * 1000; // 24 hours
+  
+  // Clean up global cache
+  const globalLastUpdate = userLastUpdate.get('global');
+  if (globalLastUpdate && (now - globalLastUpdate > maxCacheAge)) {
+    userPlatformCache.delete('global');
+    userAnalyticsCache.delete('global');
+    userLastUpdate.delete('global');
+    console.log('🧹 Cleaned up expired global cache');
+  }
+  
+  // Clean up platform rate limits (keep only recent ones)
+  for (const [platform, rateLimit] of platformRateLimits.entries()) {
+    if (now > rateLimit.resetTime + (24 * 60 * 60 * 1000)) {
+      platformRateLimits.delete(platform);
+    }
+  }
+}
+
+// Schedule cache cleanup every hour
+cron.schedule('0 * * * *', () => {
+  console.log('🧹 Running cache cleanup...');
+  cleanupExpiredCache();
 });
 
 // -------------------- User Management --------------------
@@ -1226,6 +1334,11 @@ app.post("/api/platforms/:name/revenue", async (req, res) => {
     if (typeof revenue !== "number" || revenue < 0) {
       return res.status(400).json({ error: "Revenue must be a non-negative number" });
     }
+    
+    // Add safety check for extremely high values
+    if (revenue > 1000000000) { // 1 billion limit
+      return res.status(400).json({ error: "Revenue cannot exceed 1,000,000,000" });
+    }
     manualRevenueOverrides[name] = revenue;
     saveManualRevenueOverrides();
     // Update cache immediately for all users
@@ -1415,81 +1528,7 @@ app.get("/api/platforms/:name/stats", async (req, res) => {
   }
 });
 
-// Server-Sent Events (SSE) endpoint for real-time updates
-app.get("/api/websocket", async (req, res) => {
-  try {
-    // Set SSE headers
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': req.headers.origin || 'http://localhost:3000',
-      'Access-Control-Allow-Credentials': 'true'
-    });
 
-    // Send initial connection message
-    res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: Date.now() })}\n\n`);
-
-    // Handle authentication
-    let user = null;
-    const authHeader = req.headers.authorization;
-    const tokenParam = req.query.token;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      try {
-        const decoded = Buffer.from(token, 'base64').toString('utf-8');
-        const [email, timestamp] = decoded.split(':');
-        const tokenTime = parseInt(timestamp);
-        const currentTime = Date.now();
-        if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
-          user = await findUserByEmail(email);
-        }
-      } catch (error) {
-        console.log('Token decode error in SSE:', error);
-      }
-    } else if (tokenParam) {
-      try {
-        const decoded = Buffer.from(tokenParam, 'base64').toString('utf-8');
-        const [email, timestamp] = decoded.split(':');
-        const tokenTime = parseInt(timestamp);
-        const currentTime = Date.now();
-        if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
-          user = await findUserByEmail(email);
-        }
-      } catch (error) {
-        console.log('Token param decode error in SSE:', error);
-      }
-    }
-
-    // Send user status
-    res.write(`data: ${JSON.stringify({ 
-      type: 'auth_status', 
-      authenticated: !!user,
-      user: user ? { email: user.email, id: user.id } : null,
-      timestamp: Date.now()
-    })}\n\n`);
-
-    // Keep connection alive with periodic heartbeats
-    const heartbeat = setInterval(() => {
-      res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: Date.now() })}\n\n`);
-    }, 30000); // Every 30 seconds
-
-    // Handle client disconnect
-    req.on('close', () => {
-      clearInterval(heartbeat);
-      // Only log in development to reduce noise
-      if (process.env.NODE_ENV === 'development') {
-        console.log('SSE client disconnected');
-      }
-    });
-
-  } catch (error) {
-    console.error('SSE error:', error);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: 'SSE connection failed' })}\n\n`);
-    res.end();
-  }
-});
 
 // Health check
 app.get("/api/health", (req, res) => {
