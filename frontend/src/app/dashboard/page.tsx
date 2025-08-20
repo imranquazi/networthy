@@ -509,8 +509,7 @@ export default function DashboardPage() {
   // Remove the old authentication check since we're using ProtectedRoute now
 
   return (
-    // <ProtectedRoute>
-      <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
           <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">

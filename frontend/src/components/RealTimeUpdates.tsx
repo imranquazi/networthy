@@ -24,12 +24,14 @@ export default function RealTimeUpdates({ onUpdate, onConnect, onDisconnect }: R
 
     const connectToSSE = () => {
       try {
-        // Try to get token for authentication
+        // Only connect if we have a token (user is authenticated)
         const token = localStorage.getItem('authToken');
-        const url = token 
-          ? `http://localhost:4000/api/websocket?token=${encodeURIComponent(token)}`
-          : 'http://localhost:4000/api/websocket';
+        if (!token) {
+          console.log('🔒 No auth token found, skipping SSE connection');
+          return;
+        }
         
+        const url = `http://localhost:4000/api/websocket?token=${encodeURIComponent(token)}`;
         eventSource = new EventSource(url, {
           withCredentials: true
         });
@@ -57,16 +59,8 @@ export default function RealTimeUpdates({ onUpdate, onConnect, onDisconnect }: R
           setIsConnected(false);
           onDisconnect?.();
           
-          // Only attempt to reconnect if we have a token
-          const token = localStorage.getItem('authToken');
-          if (token) {
-            setTimeout(() => {
-              if (eventSource) {
-                eventSource.close();
-                connectToSSE();
-              }
-            }, 5000);
-          }
+          // Simple approach: don't auto-reconnect to prevent loops
+          // Let the user refresh the page if they want to reconnect
         };
               } catch (error) {
           console.log('❌ Failed to establish SSE connection (this is normal if not authenticated):', error);

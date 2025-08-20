@@ -25,6 +25,37 @@ const MANUAL_REVENUE_PATH = path.join(__dirname, "manualRevenue.json");
 
 const app = express();
 
+// Simple request deduplication to prevent infinite loops
+const requestCache = new Map();
+const DEDUP_WINDOW = 2000; // 2 seconds
+
+const deduplicateRequests = (req, res, next) => {
+  const userId = req.session?.user?.id || req.query.token || 'anonymous';
+  const endpoint = req.path;
+  const key = `${userId}:${endpoint}`;
+  const now = Date.now();
+  
+  const lastRequest = requestCache.get(key);
+  if (lastRequest && (now - lastRequest) < DEDUP_WINDOW) {
+    console.log(`🔄 Deduplicating request: ${endpoint} for user ${userId} (${now - lastRequest}ms since last)`);
+    return res.status(429).json({ error: 'Request too frequent, please wait a moment' });
+  }
+  
+  requestCache.set(key, now);
+  
+  // Clean up old entries every 10 seconds
+  if (Math.random() < 0.1) { // 10% chance on each request
+    const cutoff = now - 10000; // 10 seconds
+    for (const [cacheKey, timestamp] of requestCache.entries()) {
+      if (timestamp < cutoff) {
+        requestCache.delete(cacheKey);
+      }
+    }
+  }
+  
+  next();
+};
+
 // Security middleware
 app.use(helmet());
 app.use(compression());
@@ -319,7 +350,7 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 // Get current user
-app.get("/api/auth/me", async (req, res) => {
+app.get("/api/auth/me", deduplicateRequests, async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ authenticated: false, error: 'Not authenticated' });
   }
@@ -898,7 +929,7 @@ app.get("/api/auth/tiktok/callback", async (req, res) => {
 });
 
 // Platform Management
-app.get("/api/platforms", async (req, res) => {
+app.get("/api/platforms", deduplicateRequests, async (req, res) => {
   let userConnectedPlatforms = [];
   let user = null;
   try {
