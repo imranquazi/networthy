@@ -3,11 +3,9 @@ import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -16,15 +14,9 @@ import {
   LogOut,
   Settings,
   BarChart3,
-  Calendar,
-  Target,
-  Link as LinkIcon,
-  CheckCircle,
-  ExternalLink,
   ArrowLeft,
   RefreshCw
 } from 'lucide-react';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/hooks/useAuth';
 import { 
   LineChart, 
@@ -138,7 +130,7 @@ interface AnalyticsData {
 }
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const [platformData, setPlatformData] = useState<PlatformData[]>([]);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -309,11 +301,11 @@ export default function DashboardPage() {
     } finally {
       setIsFetching(false);
     }
-  }, []); // Remove connectedPlatforms dependency to prevent infinite loops
+  }, [isFetching]); // Add isFetching dependency
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]); // Add fetchData dependency
 
   const getPlatformIcon = (platform: string) => {
     switch (platform.toLowerCase()) {
@@ -613,7 +605,7 @@ export default function DashboardPage() {
                     </h3>
                     <div className="mt-2 text-sm text-yellow-700">
                       <p>
-                        Your platforms are connected but we're having trouble fetching data from the APIs. 
+                        Your platforms are connected but we&apos;re having trouble fetching data from the APIs. 
                         This could be due to API quota limits, network issues, or your channels being new with no data yet.
                         The graphs below show demo data until this is resolved.
                       </p>
@@ -652,7 +644,7 @@ export default function DashboardPage() {
                       </p>
                       {platformData.some(p => p.error) && (
                         <p className="mt-2 text-xs text-green-600">
-                          ⚠️ <strong>Note:</strong> Some platforms have API errors but we're still showing available data.
+                          ⚠️ <strong>Note:</strong> Some platforms have API errors but we&apos;re still showing available data.
                         </p>
                       )}
                     </div>
