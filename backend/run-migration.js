@@ -12,29 +12,37 @@ async function runMigration() {
   });
 
   try {
-    console.log('🔄 Running platform_history table migration...');
+    console.log('🔄 Running database migrations...');
     
-    // Read the migration SQL file
-    const migrationPath = path.join(process.cwd(), 'migrations', 'create_platform_history_table.sql');
-    const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
+    // Run platform_history table migration
+    console.log('📋 Creating platform_history table...');
+    const platformHistoryPath = path.join(process.cwd(), 'migrations', 'create_platform_history_table.sql');
+    const platformHistorySQL = fs.readFileSync(platformHistoryPath, 'utf8');
+    await pool.query(platformHistorySQL);
+    console.log('✅ Platform history table migration completed!');
     
-    // Execute the migration
-    await pool.query(migrationSQL);
+    // Run user_tokens table migration
+    console.log('🔐 Creating user_tokens table...');
+    const userTokensPath = path.join(process.cwd(), 'migrations', 'create_user_tokens_table.sql');
+    const userTokensSQL = fs.readFileSync(userTokensPath, 'utf8');
+    await pool.query(userTokensSQL);
+    console.log('✅ User tokens table migration completed!');
     
-    console.log('✅ Platform history table migration completed successfully!');
-    
-    // Verify the table was created
-    const result = await pool.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name = 'platform_history'
-    `);
-    
-    if (result.rows.length > 0) {
-      console.log('✅ platform_history table exists and is ready for use');
-    } else {
-      console.log('❌ platform_history table was not created');
+    // Verify tables were created
+    const tables = ['platform_history', 'user_tokens'];
+    for (const table of tables) {
+      const result = await pool.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = $1
+      `, [table]);
+      
+      if (result.rows.length > 0) {
+        console.log(`✅ ${table} table exists and is ready for use`);
+      } else {
+        console.log(`❌ ${table} table was not created`);
+      }
     }
     
   } catch (error) {
@@ -49,7 +57,7 @@ async function runMigration() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   runMigration()
     .then(() => {
-      console.log('🎉 Migration completed successfully!');
+      console.log('🎉 All migrations completed successfully!');
       process.exit(0);
     })
     .catch((error) => {
