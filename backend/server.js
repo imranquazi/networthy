@@ -154,7 +154,8 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-app.use(session({ 
+// Session configuration with proper store for production
+const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'networthy', 
   resave: false, 
   saveUninitialized: false,
@@ -164,7 +165,29 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: 'lax'
   }
-}));
+};
+
+// Use PostgreSQL session store in production, MemoryStore in development
+if (process.env.NODE_ENV === 'production') {
+  try {
+    const pgSession = require('connect-pg-simple')(session);
+    sessionConfig.store = new pgSession({
+      conObject: {
+        connectionString: process.env.PG_CONNECTION_STRING,
+        ssl: { rejectUnauthorized: false }
+      },
+      tableName: 'sessions'
+    });
+    console.log('✅ Using PostgreSQL session store for production');
+  } catch (error) {
+    console.warn('⚠️ Failed to setup PostgreSQL session store, falling back to MemoryStore:', error.message);
+    console.warn('⚠️ Install connect-pg-simple for production session storage');
+  }
+} else {
+  console.log('✅ Using MemoryStore for development');
+}
+
+app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
 

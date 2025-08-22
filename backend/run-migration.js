@@ -28,8 +28,15 @@ async function runMigration() {
     await pool.query(userTokensSQL);
     console.log('✅ User tokens table migration completed!');
     
+    // Run sessions table migration
+    console.log('🔄 Creating sessions table...');
+    const sessionsPath = path.join(process.cwd(), 'migrations', 'create_sessions_table.sql');
+    const sessionsSQL = fs.readFileSync(sessionsPath, 'utf8');
+    await pool.query(sessionsSQL);
+    console.log('✅ Sessions table migration completed!');
+    
     // Verify tables were created
-    const tables = ['platform_history', 'user_tokens'];
+    const tables = ['platform_history', 'user_tokens', 'sessions'];
     for (const table of tables) {
       const result = await pool.query(`
         SELECT table_name 
