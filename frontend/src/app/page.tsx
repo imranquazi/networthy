@@ -83,15 +83,13 @@ export default function HomePage() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div>
-                <Image 
-                  src="/assets/Asset 10.png" 
-                  alt="Networthy Logo" 
-                  width={175}
-                  height={175}
-                  className="object-contain w-auto h-auto" 
-                />
-              </div>
+              <Image 
+                src="/assets/Asset 10.png" 
+                alt="Networthy Logo" 
+                width={150}
+                height={150}
+                className="object-contain" 
+              />
             </Link>
           </div>
           
