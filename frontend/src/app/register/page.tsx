@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft } from 'lucide-react';
+import { authConfig, getApiUrl } from '@/config/auth';
 
 export default function RegisterPage() {
   const [loading, setLoading] = useState(true);
@@ -22,7 +23,7 @@ export default function RegisterPage() {
         const token = localStorage.getItem('authToken');
         if (token) {
           try {
-            const response = await fetch('http://localhost:4000/api/auth/status-token', {
+            const response = await fetch(getApiUrl(authConfig.endpoints.statusToken), {
               headers: {
                 'Authorization': `Bearer ${token}`
               }
@@ -39,7 +40,7 @@ export default function RegisterPage() {
         }
         
         try {
-          const response = await fetch('http://localhost:4000/api/auth/status', {
+          const response = await fetch(getApiUrl('/api/auth/status'), {
             credentials: 'include'
           });
           const data = await response.json();
@@ -74,7 +75,7 @@ export default function RegisterPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:4000/api/auth/register', {
+      const response = await fetch(getApiUrl(authConfig.endpoints.register), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

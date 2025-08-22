@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft } from 'lucide-react';
+import { authConfig, getApiUrl } from '@/config/auth';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(true);
@@ -18,40 +19,40 @@ export default function LoginPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = localStorage.getItem('authToken');
-        if (token) {
-          try {
-            const response = await fetch('http://localhost:4000/api/auth/status-token', {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            });
-            const data = await response.json();
-            
-            if (data.authenticated) {
-              window.location.href = '/dashboard';
-              return;
-            }
-          } catch {
-            console.log('Token auth failed, trying session auth...');
+            const token = localStorage.getItem('authToken');
+    if (token) {
+      try {
+        const response = await fetch(getApiUrl(authConfig.endpoints.statusToken), {
+          headers: {
+            'Authorization': `Bearer ${token}`
           }
-        }
+        });
+        const data = await response.json();
         
-        try {
-          const response = await fetch('http://localhost:4000/api/auth/status', {
-            credentials: 'include'
-          });
-          const data = await response.json();
-          
-          if (data.authenticated) {
-            window.location.href = '/dashboard';
-          } else {
-            setLoading(false);
-          }
-        } catch {
-          console.log('Session auth failed, showing login form...');
-          setLoading(false);
+        if (data.authenticated) {
+          window.location.href = '/dashboard';
+          return;
         }
+      } catch {
+        console.log('Token auth failed, trying session auth...');
+      }
+    }
+    
+    try {
+      const response = await fetch(getApiUrl('/api/auth/status'), {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      if (data.authenticated) {
+        window.location.href = '/dashboard';
+      } else {
+        setLoading(false);
+      }
+    } catch {
+      console.log('Session auth failed, showing login form...');
+      setLoading(false);
+    }
       } catch (error) {
         console.error('Auth check failed:', error);
         setLoading(false);
@@ -67,7 +68,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:4000/api/auth/login', {
+      const response = await fetch(getApiUrl(authConfig.endpoints.login), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

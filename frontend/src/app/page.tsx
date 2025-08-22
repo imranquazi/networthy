@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { authConfig, getApiUrl } from '@/config/auth';
 
 export default function HomePage() {
   const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user?: { email: string; platform: string } } | null>(null);
@@ -23,7 +24,7 @@ export default function HomePage() {
       try {
         // Try session-based auth first
         try {
-          const response = await fetch('http://localhost:4000/api/auth/me', {
+          const response = await fetch(getApiUrl(authConfig.endpoints.me), {
             credentials: 'include'
           });
           const data = await response.json();
@@ -40,7 +41,7 @@ export default function HomePage() {
         const token = localStorage.getItem('authToken');
         if (token) {
           try {
-            const response = await fetch('http://localhost:4000/api/auth/status-token', {
+            const response = await fetch(getApiUrl(authConfig.endpoints.statusToken), {
               headers: {
                 'Authorization': `Bearer ${token}`
               }
