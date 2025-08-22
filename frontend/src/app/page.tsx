@@ -86,8 +86,8 @@ export default function HomePage() {
               <Image 
                 src="/assets/Asset 10.png" 
                 alt="Networthy Logo" 
-                width={150}
-                height={150}
+                width={175}
+                height={175}
                 className="object-contain" 
               />
             </Link>
