@@ -147,6 +147,10 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  // Fix for Railway/production deployment
+  trustProxy: true,
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false,
 });
 app.use('/api/', limiter);
 
@@ -191,11 +195,18 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // Allow Vercel domains in production
+    if (process.env.NODE_ENV === 'production' && origin && origin.includes('vercel.app')) {
+      return callback(null, true);
+    }
+    
     // Allow all origins in development
     if (process.env.NODE_ENV === 'development') {
       return callback(null, true);
     }
     
+    // Log blocked origins for debugging
+    console.log('CORS blocked origin:', origin);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
