@@ -223,6 +223,11 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // Allow networthy.link domains in production
+    if (process.env.NODE_ENV === 'production' && origin && (origin.includes('networthy.link') || origin.includes('www.networthy.link'))) {
+      return callback(null, true);
+    }
+    
     // Allow all origins in development
     if (process.env.NODE_ENV === 'development') {
       return callback(null, true);
@@ -241,7 +246,20 @@ app.use(express.json());
 
 // Handle preflight requests for all API routes
 app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:3000');
+  const origin = req.headers.origin;
+  let allowedOrigin = 'http://localhost:3000'; // default for development
+  
+  // Allow production domains
+  if (process.env.NODE_ENV === 'production') {
+    if (origin && (origin.includes('vercel.app') || origin.includes('networthy.link'))) {
+      allowedOrigin = origin;
+    }
+  } else if (origin) {
+    // In development, allow the requesting origin
+    allowedOrigin = origin;
+  }
+  
+  res.header('Access-Control-Allow-Origin', allowedOrigin);
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma');
   res.header('Access-Control-Allow-Credentials', 'true');
