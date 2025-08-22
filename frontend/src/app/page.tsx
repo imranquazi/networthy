@@ -10,15 +10,10 @@ import {
   ArrowRight,
   CheckCircle,
   Star,
-  Zap,
-  Target,
-  Award,
   ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 
 export default function HomePage() {
   const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user?: { email: string; platform: string } } | null>(null);
@@ -429,7 +424,7 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                You have complete control over your data. Delete your account anytime and we'll permanently remove all your information from our systems.
+                You have complete control over your data. Delete your account anytime and we&apos;ll permanently remove all your information from our systems.
               </p>
             </CardContent>
           </Card>
@@ -447,7 +442,7 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                We're transparent about what data we collect and how we use it. Our privacy policy is clear, simple, and easy to understand.
+                We&apos;re transparent about what data we collect and how we use it. Our privacy policy is clear, simple, and easy to understand.
               </p>
             </CardContent>
           </Card>
@@ -483,7 +478,7 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                We're fully compliant with GDPR and other privacy regulations. You have the right to access, modify, or delete your data at any time.
+                We&apos;re fully compliant with GDPR and other privacy regulations. You have the right to access, modify, or delete your data at any time.
               </p>
             </CardContent>
           </Card>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { authConfig, getApiUrl, isProduction, shouldUseHttpOnlyCookies } from '@/config/auth';
+import { authConfig, getApiUrl, shouldUseHttpOnlyCookies } from '@/config/auth';
 
 interface User {
   email: string;
