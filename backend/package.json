@@ -12,7 +12,14 @@
     "test:integration": "jest --config jest.integration.config.js",
     "test:coverage": "jest --coverage"
   },
-  "keywords": ["creator", "dashboard", "analytics", "youtube", "twitch", "tiktok"],
+  "keywords": [
+    "creator",
+    "dashboard",
+    "analytics",
+    "youtube",
+    "twitch",
+    "tiktok"
+  ],
   "author": "Networthy Team",
   "license": "MIT",
   "dependencies": {
@@ -28,11 +35,9 @@
     "googleapis": "^128.0.0",
     "axios": "^1.6.2",
     "pg": "^8.11.3",
-    "crypto": "^1.0.1",
     "bcrypt": "^5.1.1",
     "dotenv": "^16.3.1",
-    "node-cron": "^3.0.3",
-    "fs": "^0.0.1-security"
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "jest": "^29.7.0",
