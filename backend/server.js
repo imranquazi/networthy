@@ -14,6 +14,7 @@ import session from "express-session";
 import { Pool } from 'pg';
 
 import PlatformManager from "./services/platformManager.js";
+import logger from "./utils/logger.js";
 
 // Database connection
 const pool = new Pool({ 
@@ -78,7 +79,7 @@ const deduplicateRequests = (req, res, next) => {
   
   const lastRequest = requestCache.get(key);
   if (lastRequest && (now - lastRequest) < DEDUP_WINDOW) {
-    console.log(`🔄 Deduplicating request: ${endpoint} for user ${userId} (${now - lastRequest}ms since last)`);
+    logger.debug(`Deduplicating request: ${endpoint} for user ${userId} (${now - lastRequest}ms since last)`);
     // Instead of blocking, just skip the request and let it proceed
     // This prevents infinite loops while allowing legitimate requests
     return next();
@@ -178,14 +179,14 @@ if (process.env.NODE_ENV === 'production') {
       },
       tableName: 'sessions'
     });
-    console.log('✅ Using PostgreSQL session store for production');
-  } catch (error) {
-    console.warn('⚠️ Failed to setup PostgreSQL session store, falling back to MemoryStore:', error.message);
-    console.warn('⚠️ Install connect-pg-simple for production session storage');
+          logger.startup('Using PostgreSQL session store for production');
+    } catch (error) {
+      logger.warn('Failed to setup PostgreSQL session store, falling back to MemoryStore:', error.message);
+      logger.warn('Install connect-pg-simple for production session storage');
+    }
+  } else {
+    logger.startup('Using MemoryStore for development');
   }
-} else {
-  console.log('✅ Using MemoryStore for development');
-}
 
 app.use(session(sessionConfig));
 app.use(passport.initialize());
@@ -234,7 +235,7 @@ app.use(cors({
     }
     
     // Log blocked origins for debugging
-    console.log('CORS blocked origin:', origin);
+    logger.warn('CORS blocked origin:', origin);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -340,24 +341,24 @@ async function updatePlatformData(userId = null) {
     const platformsToUse = connectedPlatforms;
     
     if (platformsToUse.length === 0) {
-      console.log('📋 No platforms connected, skipping update');
-      return;
+          logger.debug('No platforms connected, skipping update');
+    return;
     }
 
     // Check if cache is still valid
     if (isCacheValid('global')) {
-      console.log('📋 Using cached platform data');
-      return;
+          logger.debug('Using cached platform data');
+    return;
     }
 
-    console.log('🔄 Updating platform data from APIs...');
+    logger.info('Updating platform data from APIs...');
     const platformStats = await platformManager.getAllPlatformStats(platformsToUse);
     
     // Update global cache
     userPlatformCache.set('global', platformStats);
     userLastUpdate.set('global', Date.now());
     
-    console.log('✅ Platform data updated successfully');
+    logger.info('Platform data updated successfully');
   } catch (error) {
     console.error('❌ Error updating platform data:', error.message);
   }
@@ -368,14 +369,14 @@ async function updateAnalyticsData(userId = null) {
     const userPlatformData = userPlatformCache.get('global');
     
     if (!userPlatformData || userPlatformData.length === 0) {
-      console.log('📋 No platform data available for analytics');
-      return;
+          logger.debug('No platform data available for analytics');
+    return;
     }
 
     const analytics = await platformManager.calculateAnalytics(userPlatformData);
     userAnalyticsCache.set('global', analytics);
     
-    console.log('✅ Analytics data updated successfully');
+    logger.info('Analytics data updated successfully');
   } catch (error) {
     console.error('❌ Error updating analytics:', error.message);
   }
@@ -385,7 +386,7 @@ async function updateAnalyticsData(userId = null) {
 
 // Schedule data updates with smart intervals
 cron.schedule('*/5 * * * *', async () => {
-  console.log('⏰ Scheduled data update started...');
+  logger.info('Scheduled data update started...');
   
   try {
     // Simple approach: just update global platform data
@@ -407,7 +408,7 @@ function cleanupExpiredCache() {
     userPlatformCache.delete('global');
     userAnalyticsCache.delete('global');
     userLastUpdate.delete('global');
-    console.log('🧹 Cleaned up expired global cache');
+    logger.debug('Cleaned up expired global cache');
   }
   
   // Clean up platform rate limits (keep only recent ones)
@@ -420,7 +421,7 @@ function cleanupExpiredCache() {
 
 // Schedule cache cleanup every hour
 cron.schedule('0 * * * *', () => {
-  console.log('🧹 Running cache cleanup...');
+  logger.debug('Running cache cleanup...');
   cleanupExpiredCache();
 });
 
@@ -788,7 +789,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
       if (state) {
         const decodedState = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
         userInfo = decodedState;
-        console.log('Google OAuth state decoded:', userInfo);
+        logger.debug('Google OAuth state decoded:', userInfo);
       } else {
         console.error('No state parameter in Google OAuth callback');
         return res.redirect('http://localhost:3000/login?error=google_oauth_failed');
@@ -822,7 +823,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
           title: channelTitle || 'YouTube Channel'
         });
         await updateUserPlatforms(user.id, connectedPlatforms);
-        console.log('Added YouTube platform to user:', user.email, 'Platforms:', connectedPlatforms);
+        logger.info('Added YouTube platform to user:', user.email, 'Platforms:', connectedPlatforms);
       }
     }
     
@@ -902,8 +903,8 @@ app.get("/api/auth/twitch", async (req, res, next) => {
 
 app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRedirect: "http://localhost:3000/login?error=twitch_oauth_failed" }), async (req, res) => {
   try {
-    console.log('Twitch callback - req.user:', req.user);
-    console.log('Twitch callback - state:', req.query.state);
+    logger.debug('Twitch callback - req.user:', req.user);
+    logger.debug('Twitch callback - state:', req.query.state);
     
     if (!req.user) {
       console.error('No user data in Twitch callback');
@@ -911,7 +912,7 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
     }
     
     const { accessToken, refreshToken, profile } = req.user;
-    console.log('Twitch tokens received:', { accessToken: !!accessToken, refreshToken: !!refreshToken, profile: !!profile });
+    logger.debug('Twitch tokens received:', { accessToken: !!accessToken, refreshToken: !!refreshToken, profile: !!profile });
     
     if (!profile || !profile.email) {
       console.error('No email in Twitch profile:', profile);
@@ -923,7 +924,7 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
     try {
       if (req.query.state) {
         userInfo = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
-        console.log('✅ Retrieved user info from state:', userInfo.email);
+        logger.info('Retrieved user info from state:', userInfo.email);
       } else {
         throw new Error('No state parameter');
       }
@@ -938,7 +939,7 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
       return res.redirect('http://localhost:3000/login?error=state_expired');
     }
     
-    console.log('Storing Twitch token for user from state:', userInfo.email);
+    logger.debug('Storing Twitch token for user from state:', userInfo.email);
     
     await storeToken(userInfo.email, 'twitch', { accessToken, refreshToken });
     
@@ -956,17 +957,17 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
           title: profile.display_name || 'Twitch Channel'
         });
         await updateUserPlatforms(user.id, connectedPlatforms);
-        console.log('Added Twitch platform to user:', user.email, 'Platforms:', connectedPlatforms);
+        logger.info('Added Twitch platform to user:', user.email, 'Platforms:', connectedPlatforms);
       }
     }
     
-    console.log('User connected platforms after Twitch:', user && user.connected_platforms);
+    logger.debug('User connected platforms after Twitch:', user && user.connected_platforms);
     
     // Update platform data immediately
     await updatePlatformData(user.id);
     await updateAnalyticsData(user.id);
     
-    console.log('Redirecting to dashboard with Twitch data');
+    logger.info('Redirecting to dashboard with Twitch data');
     // Redirect to frontend dashboard
     res.redirect('http://localhost:3000/dashboard?platform=twitch&email=' + encodeURIComponent(userInfo.email));
   } catch (err) {
@@ -1045,7 +1046,7 @@ app.get("/api/auth/tiktok/callback", async (req, res) => {
     try {
       if (state) {
         userInfo = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
-        console.log('TikTok OAuth state decoded:', userInfo);
+        logger.debug('TikTok OAuth state decoded:', userInfo);
       } else {
         console.error('No state parameter in TikTok OAuth callback');
         return res.redirect('http://localhost:3000/login?error=tiktok_oauth_failed');
@@ -1072,7 +1073,7 @@ app.get("/api/auth/tiktok/callback", async (req, res) => {
           title: 'TikTok Account'
         });
         await updateUserPlatforms(user.id, connectedPlatforms);
-        console.log('Added TikTok platform to user:', user.email, 'Platforms:', connectedPlatforms);
+        logger.info('Added TikTok platform to user:', user.email, 'Platforms:', connectedPlatforms);
       }
     }
     
@@ -1096,27 +1097,27 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
     // If user is authenticated, fetch their tokens
     let userTokens = {};
     
-    // First try session-based authentication
-    if (req.session && req.session.user && req.session.user.email) {
-      console.log('Session user:', req.session.user);
-      user = await findUserByEmail(req.session.user.email);
-      console.log('Found user:', user ? user.email : 'not found');
-      if (user) {
-        userConnectedPlatforms = user.connected_platforms || [];
-        console.log('User connected platforms:', userConnectedPlatforms);
-      }
-      
-      const [youtubeToken, twitchToken, tiktokToken] = await Promise.all([
-        getToken(req.session.user.email, 'youtube').catch(() => null),
-        getToken(req.session.user.email, 'twitch').catch(() => null),
-        getToken(req.session.user.email, 'tiktok').catch(() => null)
-      ]);
-      
-      if (youtubeToken) userTokens.youtube = youtubeToken;
-      if (twitchToken) userTokens.twitch = twitchToken;
-      if (tiktokToken) userTokens.tiktok = tiktokToken;
-      
-      console.log('User tokens found:', Object.keys(userTokens));
+          // First try session-based authentication
+      if (req.session && req.session.user && req.session.user.email) {
+        logger.debug('Session user:', req.session.user);
+        user = await findUserByEmail(req.session.user.email);
+        logger.debug('Found user:', user ? user.email : 'not found');
+        if (user) {
+          userConnectedPlatforms = user.connected_platforms || [];
+          logger.debug('User connected platforms:', userConnectedPlatforms);
+        }
+        
+        const [youtubeToken, twitchToken, tiktokToken] = await Promise.all([
+          getToken(req.session.user.email, 'youtube').catch(() => null),
+          getToken(req.session.user.email, 'twitch').catch(() => null),
+          getToken(req.session.user.email, 'tiktok').catch(() => null)
+        ]);
+        
+        if (youtubeToken) userTokens.youtube = youtubeToken;
+        if (twitchToken) userTokens.twitch = twitchToken;
+        if (tiktokToken) userTokens.tiktok = tiktokToken;
+        
+        logger.debug('User tokens found:', Object.keys(userTokens));
     } else {
       // Try token-based authentication
       const authHeader = req.headers.authorization;
@@ -1139,10 +1140,10 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
           const currentTime = Date.now();
           if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
             user = await findUserByEmail(email);
-            console.log('Token user:', user ? user.email : 'not found');
+            logger.debug('Token user:', user ? user.email : 'not found');
             if (user) {
               userConnectedPlatforms = user.connected_platforms || [];
-              console.log('User connected platforms:', userConnectedPlatforms);
+              logger.debug('User connected platforms:', userConnectedPlatforms);
               
               const [youtubeToken, twitchToken, tiktokToken] = await Promise.all([
                 getToken(email, 'youtube').catch(() => null),
@@ -1154,7 +1155,7 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
               if (twitchToken) userTokens.twitch = twitchToken;
               if (tiktokToken) userTokens.tiktok = tiktokToken;
               
-              console.log('User tokens found:', Object.keys(userTokens));
+              logger.debug('User tokens found:', Object.keys(userTokens));
             }
           }
         } catch (decodeError) {
@@ -1175,8 +1176,8 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
                          userConnectedPlatforms.length > 0 ||
                          forceRefresh;
     
-    console.log('Should refresh:', shouldRefresh);
-    console.log('User connected platforms length:', userConnectedPlatforms.length);
+    logger.debug('Should refresh:', shouldRefresh);
+    logger.debug('User connected platforms length:', userConnectedPlatforms.length);
     
     if (shouldRefresh) {
       // For platforms with user tokens, pass them to PlatformManager
@@ -1260,7 +1261,7 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
         const newData = [...allStats, ...otherStats];
         userPlatformCache.set(userCacheKey, newData);
         userLastUpdate.set(userCacheKey, Date.now());
-        console.log('Updated user cache with authenticated data:', newData);
+        logger.debug('Updated user cache with authenticated data:', newData);
       } else if (userConnectedPlatforms.length > 0) {
         // User has connected platforms but no tokens yet - return empty data for those platforms
         const emptyData = userConnectedPlatforms.map(platform => ({
@@ -1274,7 +1275,7 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
         }));
         userPlatformCache.set(userCacheKey, emptyData);
         userLastUpdate.set(userCacheKey, Date.now());
-        console.log('Updated user cache with empty data for connected platforms:', emptyData);
+        logger.debug('Updated user cache with empty data for connected platforms:', emptyData);
       } else {
         // No user platforms connected - use mock data
         await updatePlatformData(userId);
@@ -1297,11 +1298,11 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
       return platform;
     });
     
-    console.log('Returning platform data for user:', userCacheKey, data);
+    logger.debug('Returning platform data for user:', userCacheKey, data);
     res.json(data);
   } catch (error) {
     console.error('Error fetching platforms:', error);
-      console.log('User connected platforms in catch:', userConnectedPlatforms);
+      logger.debug('User connected platforms in catch:', userConnectedPlatforms);
       // Always return an array for the frontend
       if (userConnectedPlatforms && userConnectedPlatforms.length > 0) {
         const emptyData = userConnectedPlatforms.map(platform => ({
@@ -1313,7 +1314,7 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
           revenue: 0,
           growth: 0
         }));
-        console.log('Returning empty data due to error:', emptyData);
+        logger.debug('Returning empty data due to error:', emptyData);
         res.json(emptyData);
       } else {
         // Return default mock data for unauthenticated users
@@ -1606,8 +1607,8 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`🚀 Creator Dashboard Backend running on http://localhost:${PORT}`);
-  console.log(`📊 Connected platforms: ${connectedPlatforms.length}`);
-  console.log(`⏰ Data refresh scheduled every 5 minutes`);
+  logger.startup(`Creator Dashboard Backend running on http://localhost:${PORT}`);
+logger.startup(`Connected platforms: ${connectedPlatforms.length}`);
+logger.startup(`Data refresh scheduled every 5 minutes`);
 });
 
