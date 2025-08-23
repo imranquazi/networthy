@@ -33,6 +33,9 @@ const MANUAL_REVENUE_PATH = path.join(__dirname, "manualRevenue.json");
 
 const app = express();
 
+// Trust proxy for Railway deployment (fixes rate limit issues)
+app.set('trust proxy', 1);
+
 // Simple request deduplication to prevent infinite loops
 const requestCache = new Map();
 const DEDUP_WINDOW = 500; // Reduce to 500ms for better responsiveness
@@ -168,18 +171,21 @@ const sessionConfig = {
   }
 };
 
-// Use PostgreSQL session store in production, MemoryStore in development
-if (process.env.NODE_ENV === 'production') {
-  try {
-    const pgSession = require('connect-pg-simple')(session);
-    sessionConfig.store = new pgSession({
-      conObject: {
-        connectionString: process.env.PG_CONNECTION_STRING,
-        ssl: { rejectUnauthorized: false }
-      },
-      tableName: 'sessions'
-    });
-          logger.startup('Using PostgreSQL session store for production');
+// Initialize session store
+const initializeSessionStore = async () => {
+  if (process.env.NODE_ENV === 'production') {
+    try {
+      // Use dynamic import for ES modules compatibility
+      const pgSimple = await import('connect-pg-simple');
+      const pgSession = pgSimple.default(session);
+      sessionConfig.store = new pgSession({
+        conObject: {
+          connectionString: process.env.PG_CONNECTION_STRING,
+          ssl: { rejectUnauthorized: false }
+        },
+        tableName: 'sessions'
+      });
+      logger.startup('Using PostgreSQL session store for production');
     } catch (error) {
       logger.warn('Failed to setup PostgreSQL session store, falling back to MemoryStore:', error.message);
       logger.warn('Install connect-pg-simple for production session storage');
@@ -187,10 +193,14 @@ if (process.env.NODE_ENV === 'production') {
   } else {
     logger.startup('Using MemoryStore for development');
   }
+  
+  app.use(session(sessionConfig));
+  app.use(passport.initialize());
+  app.use(passport.session());
+};
 
-app.use(session(sessionConfig));
-app.use(passport.initialize());
-app.use(passport.session());
+// Initialize session store
+await initializeSessionStore();
 
 // Passport serialization
 passport.serializeUser((user, done) => {
