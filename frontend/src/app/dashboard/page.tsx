@@ -18,6 +18,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { authConfig, getApiUrl } from '@/config/auth';
 import { 
   LineChart, 
   Line, 
@@ -71,7 +72,7 @@ function RevenueForm({ platform, initialRevenue, onClose, onSave }: RevenueFormP
       period: "monthly"
     };
 
-    const res = await fetch(`http://localhost:4000/api/platforms/${platform}/revenue`, {
+    const res = await fetch(getApiUrl(`/api/platforms/${platform}/revenue`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ revenue: Number(revenue) })
@@ -154,7 +155,7 @@ export default function DashboardPage() {
       try {
         if (token) {
           // Try token-based auth first
-          authRes = await fetch('http://localhost:4000/api/auth/status-token', {
+          authRes = await fetch(getApiUrl(authConfig.endpoints.statusToken), {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -164,7 +165,7 @@ export default function DashboardPage() {
         
         if (!token || !authData?.authenticated) {
           // Fallback to session-based auth
-          authRes = await fetch('http://localhost:4000/api/auth/me', {
+          authRes = await fetch(getApiUrl(authConfig.endpoints.me), {
             credentials: 'include'
           });
           authData = await authRes.json();
@@ -216,12 +217,12 @@ export default function DashboardPage() {
       
       try {
         const [platformsRes, analyticsRes] = await Promise.all([
-          fetch(`http://localhost:4000/api/platforms${refreshParam}`, {
+          fetch(getApiUrl(`/api/platforms${refreshParam}`), {
             credentials: 'include',
             cache: 'no-cache',
             headers
           }),
-          fetch(`http://localhost:4000/api/analytics${refreshParam}`, {
+          fetch(getApiUrl(`/api/analytics${refreshParam}`), {
             credentials: 'include',
             cache: 'no-cache',
             headers
@@ -348,7 +349,7 @@ export default function DashboardPage() {
     try {
       const authToken = localStorage.getItem('authToken');
       if (authToken) {
-        const response = await fetch('http://localhost:4000/api/auth/status-token', {
+        const response = await fetch(getApiUrl(authConfig.endpoints.statusToken), {
           headers: {
             'Authorization': `Bearer ${authToken}`
           }
@@ -385,16 +386,16 @@ export default function DashboardPage() {
       let oauthUrl = '';
       if (platform.toLowerCase() === 'youtube') {
         oauthUrl = authToken 
-          ? `http://localhost:4000/api/auth/google?token=${encodeURIComponent(authToken)}`
-          : 'http://localhost:4000/api/auth/google';
+          ? `${getApiUrl('/api/auth/google')}?token=${encodeURIComponent(authToken)}`
+          : getApiUrl('/api/auth/google');
       } else if (platform.toLowerCase() === 'twitch') {
         oauthUrl = authToken 
-          ? `http://localhost:4000/api/auth/twitch?token=${encodeURIComponent(authToken)}`
-          : 'http://localhost:4000/api/auth/twitch';
+          ? `${getApiUrl('/api/auth/twitch')}?token=${encodeURIComponent(authToken)}`
+          : getApiUrl('/api/auth/twitch');
       } else if (platform.toLowerCase() === 'tiktok') {
         oauthUrl = authToken 
-          ? `http://localhost:4000/api/auth/tiktok?token=${encodeURIComponent(authToken)}`
-          : 'http://localhost:4000/api/auth/tiktok';
+          ? `${getApiUrl('/api/auth/tiktok')}?token=${encodeURIComponent(authToken)}`
+          : getApiUrl('/api/auth/tiktok');
       } else {
         alert('Unsupported platform for token refresh');
         return;
@@ -410,7 +411,7 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:4000/api/auth/logout', {
+      await fetch(getApiUrl(authConfig.endpoints.logout), {
         credentials: 'include'
       });
       setAuthStatus({ authenticated: false, user: null });
@@ -450,7 +451,7 @@ export default function DashboardPage() {
 
     try {
       // Try session-based authentication first
-      let response = await fetch('http://localhost:4000/api/auth/delete-account', {
+      let response = await fetch(getApiUrl('/api/auth/delete-account'), {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -459,7 +460,7 @@ export default function DashboardPage() {
       if (response.status === 401) {
         const authToken = localStorage.getItem('authToken');
         if (authToken) {
-          response = await fetch(`http://localhost:4000/api/auth/delete-account?token=${encodeURIComponent(authToken)}`, {
+          response = await fetch(`${getApiUrl('/api/auth/delete-account')}?token=${encodeURIComponent(authToken)}`, {
             method: 'DELETE'
           });
         }
@@ -784,7 +785,7 @@ export default function DashboardPage() {
                 <Button
                   onClick={async () => {
                     try {
-                      const response = await fetch('http://localhost:4000/api/platforms', {
+                      const response = await fetch(getApiUrl('/api/platforms'), {
                         credentials: 'include',
                         cache: 'no-cache'
                       });
@@ -855,7 +856,7 @@ export default function DashboardPage() {
                                    // Recalculate analytics data for the chart
                                    (async () => {
                                      try {
-                                       const response = await fetch('http://localhost:4000/api/analytics', {
+                                       const response = await fetch(getApiUrl('/api/analytics'), {
                                          method: 'POST',
                                          headers: {
                                            'Content-Type': 'application/json',
@@ -984,8 +985,8 @@ export default function DashboardPage() {
                              console.log('Auth token found:', !!authToken); // Debug log
                              
                              const oauthUrl = authToken 
-                               ? `http://localhost:4000/api/auth/google?token=${encodeURIComponent(authToken)}`
-                               : 'http://localhost:4000/api/auth/google';
+                               ? `${getApiUrl('/api/auth/google')}?token=${encodeURIComponent(authToken)}`
+                               : getApiUrl('/api/auth/google');
                              
                              console.log('Redirecting to:', oauthUrl); // Debug log
                              window.location.href = oauthUrl;
@@ -1047,8 +1048,8 @@ export default function DashboardPage() {
                              // Try to get auth token, but don't require it
                              const authToken = localStorage.getItem('authToken');
                              const oauthUrl = authToken 
-                               ? `http://localhost:4000/api/auth/twitch?token=${encodeURIComponent(authToken)}`
-                               : 'http://localhost:4000/api/auth/twitch';
+                               ? `${getApiUrl('/api/auth/twitch')}?token=${encodeURIComponent(authToken)}`
+                               : getApiUrl('/api/auth/twitch');
                              
                              window.location.href = oauthUrl;
                            } catch (error) {
@@ -1093,8 +1094,8 @@ export default function DashboardPage() {
                             // Try to get auth token, but don't require it
                             const authToken = localStorage.getItem('authToken');
                             const oauthUrl = authToken 
-                              ? `http://localhost:4000/api/auth/tiktok?token=${encodeURIComponent(authToken)}`
-                              : 'http://localhost:4000/api/auth/tiktok';
+                              ? `${getApiUrl('/api/auth/tiktok')}?token=${encodeURIComponent(authToken)}`
+                              : getApiUrl('/api/auth/tiktok');
                             
                             window.location.href = oauthUrl;
                           } catch (error) {
