@@ -153,6 +153,7 @@ export default function DashboardPage() {
       let authRes, authData;
       
       try {
+        // Prioritize token-based authentication since session auth is having issues
         if (token) {
           // Try token-based auth first
           authRes = await fetch(getApiUrl(authConfig.endpoints.statusToken), {
@@ -161,15 +162,23 @@ export default function DashboardPage() {
             }
           });
           authData = await authRes.json();
+          
+          if (authData?.authenticated) {
+            console.log('Token-based authentication successful');
+          } else {
+            console.log('Token-based authentication failed, trying session auth');
+          }
         }
         
+        // Only try session-based auth if token auth failed or no token exists
         if (!token || !authData?.authenticated) {
-          // Fallback to session-based auth
           try {
+            console.log('Attempting session-based authentication');
             authRes = await fetch(getApiUrl(authConfig.endpoints.me), {
               credentials: 'include'
             });
             authData = await authRes.json();
+            console.log('Session auth result:', authData);
           } catch (sessionError) {
             console.log('Session auth failed, continuing with token auth:', sessionError);
             // If session auth fails, continue with token auth if we have it
@@ -190,6 +199,7 @@ export default function DashboardPage() {
           console.log('Auth failed but token exists, continuing with token-based requests');
           setAuthStatus({ authenticated: true, user: { email: 'user@example.com', platform: 'none' } });
         } else {
+          console.log('No authentication method available, redirecting to login');
           setAuthStatus({ authenticated: false, user: null });
           setLoading(false);
           return;
