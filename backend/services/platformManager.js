@@ -14,6 +14,7 @@ class PlatformManager {
     this.historyService = new HistoryService();
     this.cache = new Map();
     this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
+    this.analyticsCacheVersion = 'v2'; // Increment when trend calculation logic changes
   }
 
   async getPlatformStats(platform, identifier, userId = null) {
@@ -114,6 +115,18 @@ class PlatformManager {
 
   async calculateAnalytics(platformStats, userId = null) {
     try {
+      // Check cache version and clear if outdated
+      const cacheKey = `analytics_${userId || 'anonymous'}`;
+      const cached = this.cache.get(cacheKey);
+      
+      if (cached && cached.version !== this.analyticsCacheVersion) {
+        console.log(`Clearing outdated analytics cache (${cached.version} -> ${this.analyticsCacheVersion})`);
+        this.cache.delete(cacheKey);
+      } else if (cached && Date.now() < cached.expiry) {
+        // Return cached result if valid
+        return cached.data;
+      }
+      
       const totalRevenue = platformStats.reduce((sum, platform) => sum + (platform.revenue || 0), 0);
       const totalFollowers = platformStats.reduce((sum, platform) => sum + (platform.followers || 0), 0);
       
@@ -177,13 +190,22 @@ class PlatformManager {
         monthlyTrend = this.generateMonthlyTrend(totalRevenue);
       }
 
-      return {
+      const analyticsResult = {
         totalRevenue,
         totalGrowth: +averageGrowth.toFixed(1),
         topPlatform: topPlatform.name,
         monthlyTrend,
         platformBreakdown: breakdown
       };
+      
+      // Cache the analytics result with version
+      this.cache.set(cacheKey, {
+        data: analyticsResult,
+        version: this.analyticsCacheVersion,
+        expiry: Date.now() + this.cacheExpiry
+      });
+      
+      return analyticsResult;
     } catch (error) {
       console.error('Error calculating analytics:', error.message);
       throw error;

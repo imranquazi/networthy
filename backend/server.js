@@ -1589,6 +1589,20 @@ app.get("/api/analytics", async (req, res) => {
   }
 });
 
+// Analytics cache version - increment this when trend calculation logic changes
+const ANALYTICS_CACHE_VERSION = 'v2'; // Changed from v1 due to trend calculation fix
+
+// Clear analytics cache to fix trend calculation issues
+app.post("/api/cache/clear-analytics", async (req, res) => {
+  try {
+    platformManager.clearCache();
+    res.json({ success: true, message: 'Analytics cache cleared. Next request will use new trend calculation.' });
+  } catch (error) {
+    console.error('Error clearing analytics cache:', error);
+    res.status(500).json({ error: 'Failed to clear analytics cache' });
+  }
+});
+
 // Recalculate analytics with custom platform data
 app.post("/api/analytics", async (req, res) => {
   try {
