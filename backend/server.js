@@ -144,10 +144,10 @@ function checkPlatformRateLimit(platform) {
 app.use(helmet());
 app.use(compression());
 
-// Rate limiting - more lenient in development
+// Rate limiting - more lenient for production
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 1000 : (parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100), // More lenient in development
+  max: process.env.NODE_ENV === 'development' ? 1000 : (parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 500), // Increased from 100 to 500
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -156,7 +156,30 @@ const limiter = rateLimit({
   skipSuccessfulRequests: false,
   skipFailedRequests: false,
 });
-app.use('/api/', limiter);
+
+// Apply rate limiting to most endpoints, but exclude auth endpoints
+app.use('/api/', (req, res, next) => {
+  // Skip rate limiting for authentication endpoints and health check
+  if (req.path.startsWith('/auth/') || req.path === '/health') {
+    return next();
+  }
+  return limiter(req, res, next);
+});
+
+// Separate, more lenient rate limit for authentication endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // 1000 requests per 15 minutes for auth
+  message: 'Too many authentication requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  trustProxy: true,
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false,
+});
+
+// Apply auth rate limiting specifically to auth endpoints
+app.use('/api/auth/', authLimiter);
 
 // Session configuration with proper store for production
 const sessionConfig = {
