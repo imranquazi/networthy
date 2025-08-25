@@ -283,15 +283,27 @@ class HistoryService {
       return [0, 0, 0, 0, 0, 0];
     }
     
-    // Generate a realistic trend starting from 70% of current revenue only for non-zero revenue
+    // Generate a more realistic trend that stays close to current revenue
     const trend = [];
-    let baseRevenue = Math.round(currentRevenue * 0.7);
+    let baseRevenue = Math.round(currentRevenue * 0.85); // Start at 85% of current revenue
     
     for (let i = 0; i < 6; i++) {
-      const growth = (Math.random() * 0.2) + 0.9; // 90-110% growth per month
+      // Use smaller, more realistic growth (95-105% per month)
+      const growth = (Math.random() * 0.1) + 0.95; // 95-105% growth per month
       baseRevenue = Math.round(baseRevenue * growth);
+      
+      // Ensure the trend doesn't deviate too far from current revenue
+      if (baseRevenue > currentRevenue * 1.2) {
+        baseRevenue = Math.round(currentRevenue * 1.2);
+      } else if (baseRevenue < currentRevenue * 0.6) {
+        baseRevenue = Math.round(currentRevenue * 0.6);
+      }
+      
       trend.push(baseRevenue);
     }
+    
+    // Ensure the last value is close to current revenue
+    trend[trend.length - 1] = currentRevenue;
     
     return trend;
   }

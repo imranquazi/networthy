@@ -196,15 +196,27 @@ class PlatformManager {
       return [0, 0, 0, 0, 0, 0];
     }
     
-    // Generate realistic monthly trend data only for non-zero revenue
+    // Generate more realistic monthly trend data that stays close to current revenue
     const trend = [];
-    let baseRevenue = currentRevenue * 0.7; // Start at 70% of current revenue
+    let baseRevenue = currentRevenue * 0.85; // Start at 85% of current revenue
     
     for (let i = 0; i < 6; i++) {
-      const growth = (Math.random() * 0.2) + 0.9; // 90-110% growth per month
+      // Use smaller, more realistic growth (95-105% per month)
+      const growth = (Math.random() * 0.1) + 0.95; // 95-105% growth per month
       baseRevenue *= growth;
+      
+      // Ensure the trend doesn't deviate too far from current revenue
+      if (baseRevenue > currentRevenue * 1.2) {
+        baseRevenue = currentRevenue * 1.2;
+      } else if (baseRevenue < currentRevenue * 0.6) {
+        baseRevenue = currentRevenue * 0.6;
+      }
+      
       trend.push(Math.round(baseRevenue));
     }
+    
+    // Ensure the last value is close to current revenue
+    trend[trend.length - 1] = Math.round(currentRevenue);
     
     return trend;
   }
