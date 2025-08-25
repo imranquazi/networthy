@@ -144,6 +144,69 @@ function checkPlatformRateLimit(platform) {
 app.use(helmet());
 app.use(compression());
 
+// CORS configuration - more flexible for development
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost origins
+    if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
+      return callback(null, true);
+    }
+    
+    // Allow specific production domain if set
+    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
+      return callback(null, true);
+    }
+    
+    // Allow Vercel domains in production
+    if (process.env.NODE_ENV === 'production' && origin && origin.includes('vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // Allow networthy.link domains in production
+    if (process.env.NODE_ENV === 'production' && origin && (origin.includes('networthy.link') || origin.includes('www.networthy.link'))) {
+      return callback(null, true);
+    }
+    
+    // Allow all origins in development
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    // Log blocked origins for debugging
+    logger.warn('CORS blocked origin:', origin);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma'],
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+}));
+
+// Handle preflight requests for all API routes
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  let allowedOrigin = 'http://localhost:3000'; // default for development
+  
+  // Allow production domains
+  if (process.env.NODE_ENV === 'production') {
+    if (origin && (origin.includes('vercel.app') || origin.includes('networthy.link'))) {
+      allowedOrigin = origin;
+    }
+  } else if (origin) {
+    // In development, allow the requesting origin
+    allowedOrigin = origin;
+  }
+  
+  res.header('Access-Control-Allow-Origin', allowedOrigin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(200).end();
+});
+
 // Rate limiting - more lenient for production
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
@@ -157,10 +220,10 @@ const limiter = rateLimit({
   skipFailedRequests: false,
 });
 
-// Apply rate limiting to most endpoints, but exclude auth endpoints
+// Apply rate limiting to most endpoints, but exclude auth endpoints and OPTIONS requests
 app.use('/api/', (req, res, next) => {
-  // Skip rate limiting for authentication endpoints and health check
-  if (req.path.startsWith('/auth/') || req.path === '/health') {
+  // Skip rate limiting for authentication endpoints, health check, and OPTIONS requests
+  if (req.path.startsWith('/auth/') || req.path === '/health' || req.method === 'OPTIONS') {
     return next();
   }
   return limiter(req, res, next);
@@ -240,69 +303,7 @@ passport.deserializeUser((user, done) => {
 
 setupTwitchPassport();
 
-// CORS configuration - more flexible for development
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Allow localhost origins
-    if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
-      return callback(null, true);
-    }
-    
-    // Allow specific production domain if set
-    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
-      return callback(null, true);
-    }
-    
-    // Allow Vercel domains in production
-    if (process.env.NODE_ENV === 'production' && origin && origin.includes('vercel.app')) {
-      return callback(null, true);
-    }
-    
-    // Allow networthy.link domains in production
-    if (process.env.NODE_ENV === 'production' && origin && (origin.includes('networthy.link') || origin.includes('www.networthy.link'))) {
-      return callback(null, true);
-    }
-    
-    // Allow all origins in development
-    if (process.env.NODE_ENV === 'development') {
-      return callback(null, true);
-    }
-    
-    // Log blocked origins for debugging
-    logger.warn('CORS blocked origin:', origin);
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma'],
-  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
-}));
 app.use(express.json());
-
-// Handle preflight requests for all API routes
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  let allowedOrigin = 'http://localhost:3000'; // default for development
-  
-  // Allow production domains
-  if (process.env.NODE_ENV === 'production') {
-    if (origin && (origin.includes('vercel.app') || origin.includes('networthy.link'))) {
-      allowedOrigin = origin;
-    }
-  } else if (origin) {
-    // In development, allow the requesting origin
-    allowedOrigin = origin;
-  }
-  
-  res.header('Access-Control-Allow-Origin', allowedOrigin);
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.status(200).end();
-});
 
 // Persistent manual revenue overrides
 let manualRevenueOverrides = {};
