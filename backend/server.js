@@ -183,7 +183,11 @@ const initializeSessionStore = async () => {
           connectionString: process.env.PG_CONNECTION_STRING,
           ssl: { rejectUnauthorized: false }
         },
-        tableName: 'sessions'
+        tableName: 'sessions',
+        // Add error handling for session store
+        errorLog: (err) => {
+          logger.error('Session store error:', err);
+        }
       });
       logger.startup('Using PostgreSQL session store for production');
     } catch (error) {
@@ -1607,11 +1611,22 @@ app.get("/api/health", (req, res) => {
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Unhandled error:', error);
+  
+  // Check if headers have already been sent
+  if (res.headersSent) {
+    return next(error);
+  }
+  
   res.status(500).json({ error: 'Internal server error' });
 });
 
 // 404 handler
 app.use('*', (req, res) => {
+  // Check if headers have already been sent
+  if (res.headersSent) {
+    return;
+  }
+  
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
