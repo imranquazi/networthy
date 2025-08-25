@@ -550,7 +550,53 @@ app.post("/api/auth/login", async (req, res) => {
 
 // Get current user
 app.get("/api/auth/me", deduplicateRequests, async (req, res) => {
-  if (!req.session.authenticated) {
+  console.log('Session data for /api/auth/me:', {
+    sessionId: req.sessionID,
+    authenticated: req.session.authenticated,
+    user: req.session.user,
+    sessionExists: !!req.session
+  });
+  
+  // Check if session exists and has user data
+  if (!req.session || !req.session.authenticated || !req.session.user) {
+    console.log('Session authentication failed - trying token-based auth');
+    
+    // Fallback to token-based authentication
+    const authHeader = req.headers.authorization;
+    const tokenParam = req.query.token;
+    
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (tokenParam) {
+      token = tokenParam;
+    }
+    
+    if (token) {
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const [email, timestamp] = decoded.split(':');
+        
+        const tokenTime = parseInt(timestamp);
+        const currentTime = Date.now();
+        if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+          const user = await findUserByEmail(email);
+          if (user) {
+            return res.json({
+              authenticated: true,
+              user: {
+                id: user.id,
+                email: user.email,
+                connectedPlatforms: user.connected_platforms || []
+              }
+            });
+          }
+        }
+      } catch (decodeError) {
+        console.error('Token decode error:', decodeError);
+      }
+    }
+    
     return res.status(401).json({ authenticated: false, error: 'Not authenticated' });
   }
   
