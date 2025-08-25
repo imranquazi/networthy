@@ -169,7 +169,7 @@ app.use('/api/', (req, res, next) => {
 // Separate, more lenient rate limit for authentication endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // 1000 requests per 15 minutes for auth
+  max: 4000, // Increased to 4000 requests per 15 minutes for auth
   message: 'Too many authentication requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -1431,6 +1431,12 @@ app.post("/api/platforms/:name/revenue", async (req, res) => {
     }
     manualRevenueOverrides[name] = revenue;
     saveManualRevenueOverrides();
+    
+    // Clear all caches to ensure manual revenue changes are reflected immediately
+    userPlatformCache.clear();
+    userLastUpdate.clear();
+    platformManager.clearCache();
+    
     // Update cache immediately for all users
     for (const [userKey, userData] of userPlatformCache.entries()) {
       const updatedData = userData.map(platform =>
@@ -1438,6 +1444,7 @@ app.post("/api/platforms/:name/revenue", async (req, res) => {
       );
       userPlatformCache.set(userKey, updatedData);
     }
+    
     await updateAnalyticsData();
     res.json({ success: true, revenue });
   } catch (error) {
@@ -1517,8 +1524,16 @@ app.get("/api/analytics", async (req, res) => {
       }
     }
     
-    // Calculate analytics based on the platform data
-    const analytics = await platformManager.calculateAnalytics(platformData, userId);
+    // Apply manual revenue overrides to platform data before calculating analytics
+    const platformDataWithOverrides = platformData.map(platform => {
+      if (manualRevenueOverrides[platform.name]) {
+        return { ...platform, revenue: manualRevenueOverrides[platform.name] };
+      }
+      return platform;
+    });
+    
+    // Calculate analytics based on the platform data with manual overrides
+    const analytics = await platformManager.calculateAnalytics(platformDataWithOverrides, userId);
     
     res.json(analytics);
   } catch (error) {
@@ -1572,8 +1587,16 @@ app.post("/api/analytics", async (req, res) => {
     
     const userId = user ? user.id : null;
     
-    // Calculate analytics based on the provided platform data
-    const analytics = await platformManager.calculateAnalytics(platforms, userId);
+    // Apply manual revenue overrides to platform data before calculating analytics
+    const platformsWithOverrides = platforms.map(platform => {
+      if (manualRevenueOverrides[platform.name]) {
+        return { ...platform, revenue: manualRevenueOverrides[platform.name] };
+      }
+      return platform;
+    });
+    
+    // Calculate analytics based on the provided platform data with manual overrides
+    const analytics = await platformManager.calculateAnalytics(platformsWithOverrides, userId);
     
     res.json(analytics);
   } catch (error) {
