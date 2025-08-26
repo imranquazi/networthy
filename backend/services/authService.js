@@ -118,7 +118,7 @@ export function setupTwitchPassport() {
 
 // TikTok OAuth (manual)
 export async function getTikTokToken(code) {
-  const res = await axios.post('≈https://open-api.tiktok.com/oauth/access_token/', {
+  const res = await axios.post('https://open-api.tiktok.com/oauth/access_token/', {
     client_key: process.env.TIKTOK_CLIENT_KEY,
     client_secret: process.env.TIKTOK_CLIENT_SECRET,
     code,
