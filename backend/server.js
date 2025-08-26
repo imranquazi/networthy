@@ -856,6 +856,9 @@ app.get("/api/auth/google", async (req, res) => {
     timestamp: Date.now()
   })).toString('base64');
   
+  // Ensure the redirect URI is set on the client before generating URL
+  googleClient.redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  
   const url = googleClient.generateAuthUrl({
     access_type: "offline",
     scope: ["https://www.googleapis.com/auth/youtube.readonly", "email", "profile"],
@@ -870,7 +873,9 @@ app.get("/api/auth/google", async (req, res) => {
     redirect_uri: process.env.GOOGLE_REDIRECT_URI,
     client_id: process.env.GOOGLE_CLIENT_ID ? 'set' : 'missing',
     url_length: url.length,
-    full_url: url.substring(0, 200) + '...' // Log first 200 chars of URL for debugging
+    full_url: url.substring(0, 200) + '...', // Log first 200 chars of URL for debugging
+    has_redirect_uri: url.includes('redirect_uri='),
+    client_redirect_uri: googleClient.redirectUri
   });
   
   res.redirect(url);

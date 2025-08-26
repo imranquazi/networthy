@@ -94,6 +94,11 @@ export const googleClient = new OAuth2Client(
   process.env.GOOGLE_REDIRECT_URI
 );
 
+// Ensure redirect URI is set on the client
+if (process.env.GOOGLE_REDIRECT_URI) {
+  googleClient.redirectUri = process.env.GOOGLE_REDIRECT_URI;
+}
+
 // Twitch OAuth (passport strategy)
 export function setupTwitchPassport() {
   passport.use(new TwitchStrategy({
@@ -113,7 +118,7 @@ export function setupTwitchPassport() {
 
 // TikTok OAuth (manual)
 export async function getTikTokToken(code) {
-  const res = await axios.post('https://open-api.tiktok.com/oauth/access_token/', {
+  const res = await axios.post('≈https://open-api.tiktok.com/oauth/access_token/', {
     client_key: process.env.TIKTOK_CLIENT_KEY,
     client_secret: process.env.TIKTOK_CLIENT_SECRET,
     code,
