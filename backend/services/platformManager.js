@@ -119,11 +119,14 @@ class PlatformManager {
       const cacheKey = `analytics_${userId || 'anonymous'}`;
       const cached = this.cache.get(cacheKey);
       
+      console.log(`Analytics cache check for key: ${cacheKey}, cached: ${!!cached}, version: ${cached?.version}, current: ${this.analyticsCacheVersion}`);
+      
       if (cached && cached.version !== this.analyticsCacheVersion) {
         console.log(`Clearing outdated analytics cache (${cached.version} -> ${this.analyticsCacheVersion})`);
         this.cache.delete(cacheKey);
       } else if (cached && Date.now() < cached.expiry) {
         // Return cached result if valid
+        console.log(`Returning cached analytics for key: ${cacheKey}`);
         return cached.data;
       }
       
@@ -244,7 +247,19 @@ class PlatformManager {
   }
 
   clearCache() {
+    console.log('Clearing all platform manager cache');
     this.cache.clear();
+  }
+  
+  clearAnalyticsCache() {
+    console.log('Clearing analytics cache entries');
+    // Clear all cache entries that start with 'analytics_'
+    for (const [key, value] of this.cache.entries()) {
+      if (key.startsWith('analytics_')) {
+        console.log(`Clearing analytics cache key: ${key}`);
+        this.cache.delete(key);
+      }
+    }
   }
 
   getCacheStats() {

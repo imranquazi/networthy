@@ -1595,7 +1595,7 @@ const ANALYTICS_CACHE_VERSION = 'v2'; // Changed from v1 due to trend calculatio
 // Clear analytics cache to fix trend calculation issues
 app.post("/api/cache/clear-analytics", async (req, res) => {
   try {
-    platformManager.clearCache();
+    platformManager.clearAnalyticsCache();
     res.json({ success: true, message: 'Analytics cache cleared. Next request will use new trend calculation.' });
   } catch (error) {
     console.error('Error clearing analytics cache:', error);
