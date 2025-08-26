@@ -1582,7 +1582,6 @@ app.get("/api/analytics", async (req, res) => {
     // Calculate analytics based on the platform data with manual overrides
     const analytics = await platformManager.calculateAnalytics(platformDataWithOverrides, userId);
     
-    console.log('GET /api/analytics returning monthlyTrend:', analytics.monthlyTrend);
     res.json(analytics);
   } catch (error) {
     console.error('Error fetching analytics:', error);
@@ -1607,7 +1606,6 @@ app.post("/api/cache/clear-analytics", async (req, res) => {
 // Recalculate analytics with custom platform data
 app.post("/api/analytics", async (req, res) => {
   try {
-    console.log('POST /api/analytics called with platforms:', req.body.platforms?.length || 0);
     const { platforms } = req.body;
     
     if (!platforms || !Array.isArray(platforms)) {
@@ -1661,7 +1659,6 @@ app.post("/api/analytics", async (req, res) => {
     // Calculate analytics based on the provided platform data with manual overrides
     const analytics = await platformManager.calculateAnalytics(platformsWithOverrides, userId);
     
-    console.log('POST /api/analytics returning monthlyTrend:', analytics.monthlyTrend);
     res.json(analytics);
   } catch (error) {
     console.error('Error recalculating analytics:', error);

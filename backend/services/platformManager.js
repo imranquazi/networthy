@@ -115,15 +115,19 @@ class PlatformManager {
 
   async calculateAnalytics(platformStats, userId = null) {
     try {
-      // Temporarily disable caching for analytics to force fresh calculations
-      // This will ensure the new trend calculation logic is always used
-      console.log(`Analytics calculation for user: ${userId || 'anonymous'}`);
-      
-      // Clear any existing analytics cache for this user
+      // Check cache version and clear if outdated
       const cacheKey = `analytics_${userId || 'anonymous'}`;
-      if (this.cache.has(cacheKey)) {
-        console.log(`Clearing existing analytics cache for key: ${cacheKey}`);
+      const cached = this.cache.get(cacheKey);
+      
+      console.log(`Analytics cache check for key: ${cacheKey}, cached: ${!!cached}, version: ${cached?.version}, current: ${this.analyticsCacheVersion}`);
+      
+      if (cached && cached.version !== this.analyticsCacheVersion) {
+        console.log(`Clearing outdated analytics cache (${cached.version} -> ${this.analyticsCacheVersion})`);
         this.cache.delete(cacheKey);
+      } else if (cached && Date.now() < cached.expiry) {
+        // Return cached result if valid
+        console.log(`Returning cached analytics for key: ${cacheKey}`);
+        return cached.data;
       }
       
       const totalRevenue = platformStats.reduce((sum, platform) => sum + (platform.revenue || 0), 0);
@@ -195,9 +199,14 @@ class PlatformManager {
         platformBreakdown: breakdown
       };
       
-      // Temporarily disable caching - return fresh calculation every time
-      console.log(`Returning fresh analytics calculation for user: ${userId || 'anonymous'}`);
+      // Cache the analytics result with version
+      this.cache.set(cacheKey, {
+        data: analyticsResult,
+        version: this.analyticsCacheVersion,
+        expiry: Date.now() + this.cacheExpiry
+      });
       
+      console.log(`Cached analytics result for key: ${cacheKey}`);
       return analyticsResult;
     } catch (error) {
       console.error('Error calculating analytics:', error.message);
