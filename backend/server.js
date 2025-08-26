@@ -861,8 +861,17 @@ app.get("/api/auth/google", async (req, res) => {
     scope: ["https://www.googleapis.com/auth/youtube.readonly", "email", "profile"],
     prompt: "consent",
     state: state,
-    redirect_uri: process.env.GOOGLE_REDIRECT_URI
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+    response_type: "code",
+    include_granted_scopes: true
   });
+  
+  logger.info('Google OAuth URL generated:', {
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+    client_id: process.env.GOOGLE_CLIENT_ID ? 'set' : 'missing',
+    url_length: url.length
+  });
+  
   res.redirect(url);
 });
 
