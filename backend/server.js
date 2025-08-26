@@ -869,7 +869,8 @@ app.get("/api/auth/google", async (req, res) => {
   logger.info('Google OAuth URL generated:', {
     redirect_uri: process.env.GOOGLE_REDIRECT_URI,
     client_id: process.env.GOOGLE_CLIENT_ID ? 'set' : 'missing',
-    url_length: url.length
+    url_length: url.length,
+    full_url: url.substring(0, 200) + '...' // Log first 200 chars of URL for debugging
   });
   
   res.redirect(url);

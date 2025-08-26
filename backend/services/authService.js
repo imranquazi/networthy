@@ -94,9 +94,6 @@ export const googleClient = new OAuth2Client(
   process.env.GOOGLE_REDIRECT_URI
 );
 
-// Set the redirect URI explicitly on the client
-googleClient.redirectUri = process.env.GOOGLE_REDIRECT_URI;
-
 // Twitch OAuth (passport strategy)
 export function setupTwitchPassport() {
   passport.use(new TwitchStrategy({
