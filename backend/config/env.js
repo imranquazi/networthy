@@ -15,15 +15,18 @@ const requiredEnvVars = {
   // OAuth - Google/YouTube
   GOOGLE_CLIENT_ID: 'Google OAuth client ID is required',
   GOOGLE_CLIENT_SECRET: 'Google OAuth client secret is required',
+  GOOGLE_REDIRECT_URI: 'Google OAuth redirect URI is required',
   YOUTUBE_API_KEY: 'YouTube API key is required',
   
   // OAuth - Twitch
   TWITCH_CLIENT_ID: 'Twitch OAuth client ID is required',
   TWITCH_CLIENT_SECRET: 'Twitch OAuth client secret is required',
+  TWITCH_REDIRECT_URI: 'Twitch OAuth redirect URI is required',
   
   // OAuth - TikTok
   TIKTOK_CLIENT_KEY: 'TikTok OAuth client key is required',
   TIKTOK_CLIENT_SECRET: 'TikTok OAuth client secret is required',
+  TIKTOK_REDIRECT_URI: 'TikTok OAuth redirect URI is required',
   
   // Webhook Secrets
   YOUTUBE_WEBHOOK_SECRET: 'YouTube webhook secret is required',

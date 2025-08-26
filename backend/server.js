@@ -793,6 +793,14 @@ app.delete("/api/auth/delete-account", async (req, res) => {
   }
 });
 
+// Helper function to get frontend URL based on environment
+function getFrontendUrl(path = '') {
+  const baseUrl = process.env.NODE_ENV === 'production' 
+    ? 'https://www.networthy.link'
+    : 'http://localhost:3000';
+  return `${baseUrl}${path}`;
+}
+
 // Google OAuth (YouTube)
 app.get("/api/auth/google", async (req, res) => {
   // Check if user is authenticated via session or token
@@ -852,7 +860,8 @@ app.get("/api/auth/google", async (req, res) => {
     access_type: "offline",
     scope: ["https://www.googleapis.com/auth/youtube.readonly", "email", "profile"],
     prompt: "consent",
-    state: state
+    state: state,
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI
   });
   res.redirect(url);
 });
@@ -876,11 +885,11 @@ app.get("/api/auth/google/callback", async (req, res) => {
         logger.debug('Google OAuth state decoded:', userInfo);
       } else {
         console.error('No state parameter in Google OAuth callback');
-        return res.redirect('http://localhost:3000/login?error=google_oauth_failed');
+        return res.redirect(getFrontendUrl('/login?error=google_oauth_failed'));
       }
     } catch (stateError) {
       console.error('Error decoding Google OAuth state:', stateError);
-      return res.redirect('http://localhost:3000/login?error=google_oauth_failed');
+      return res.redirect(getFrontendUrl('/login?error=google_oauth_failed'));
     }
     
     // Store token for the user from state parameter
@@ -916,10 +925,10 @@ app.get("/api/auth/google/callback", async (req, res) => {
     await updateAnalyticsData(user.id);
     
     // Redirect to frontend dashboard
-    res.redirect('http://localhost:3000/dashboard?platform=youtube&email=' + encodeURIComponent(userInfo.email));
+    res.redirect(getFrontendUrl('/dashboard?platform=youtube&email=' + encodeURIComponent(userInfo.email)));
   } catch (err) {
     console.error('Google OAuth error:', err);
-    res.redirect('http://localhost:3000/login?error=google_oauth_failed');
+    res.redirect(getFrontendUrl('/login?error=google_oauth_failed'));
   }
 });
 
@@ -968,7 +977,7 @@ app.get("/api/auth/twitch", async (req, res, next) => {
   }
   
   if (!userEmail || !userId) {
-    return res.redirect('http://localhost:3000/login?error=not_logged_in');
+    return res.redirect(getFrontendUrl('/login?error=not_logged_in'));
   }
   
   // Store the user's info in a state parameter
@@ -985,14 +994,14 @@ app.get("/api/auth/twitch", async (req, res, next) => {
   })(req, res, next);
 });
 
-app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRedirect: "http://localhost:3000/login?error=twitch_oauth_failed" }), async (req, res) => {
+app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRedirect: getFrontendUrl("/login?error=twitch_oauth_failed") }), async (req, res) => {
   try {
     logger.debug('Twitch callback - req.user:', req.user);
     logger.debug('Twitch callback - state:', req.query.state);
     
     if (!req.user) {
       console.error('No user data in Twitch callback');
-      return res.redirect('http://localhost:3000/login?error=twitch_oauth_failed');
+      return res.redirect(getFrontendUrl('/login?error=twitch_oauth_failed'));
     }
     
     const { accessToken, refreshToken, profile } = req.user;
@@ -1000,7 +1009,7 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
     
     if (!profile || !profile.email) {
       console.error('No email in Twitch profile:', profile);
-      return res.redirect('http://localhost:3000/login?error=twitch_oauth_failed');
+      return res.redirect(getFrontendUrl('/login?error=twitch_oauth_failed'));
     }
     
     // Get user info from state parameter instead of session
@@ -1014,13 +1023,13 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
       }
     } catch (error) {
       console.error('Failed to parse state parameter:', error.message);
-      return res.redirect('http://localhost:3000/login?error=state_invalid');
+      return res.redirect(getFrontendUrl('/login?error=state_invalid'));
     }
     
     // Check if state is not too old (5 minutes max)
     if (Date.now() - userInfo.timestamp > 5 * 60 * 1000) {
       console.error('State parameter is too old');
-      return res.redirect('http://localhost:3000/login?error=state_expired');
+      return res.redirect(getFrontendUrl('/login?error=state_expired'));
     }
     
     logger.debug('Storing Twitch token for user from state:', userInfo.email);
@@ -1053,11 +1062,11 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
     
     logger.info('Redirecting to dashboard with Twitch data');
     // Redirect to frontend dashboard
-    res.redirect('http://localhost:3000/dashboard?platform=twitch&email=' + encodeURIComponent(userInfo.email));
+    res.redirect(getFrontendUrl('/dashboard?platform=twitch&email=' + encodeURIComponent(userInfo.email)));
   } catch (err) {
     console.error('Twitch OAuth error:', err);
     console.error('Error stack:', err.stack);
-    res.redirect('http://localhost:3000/login?error=twitch_oauth_failed');
+    res.redirect(getFrontendUrl('/login?error=twitch_oauth_failed'));
   }
 });
 
@@ -1133,11 +1142,11 @@ app.get("/api/auth/tiktok/callback", async (req, res) => {
         logger.debug('TikTok OAuth state decoded:', userInfo);
       } else {
         console.error('No state parameter in TikTok OAuth callback');
-        return res.redirect('http://localhost:3000/login?error=tiktok_oauth_failed');
+        return res.redirect(getFrontendUrl('/login?error=tiktok_oauth_failed'));
       }
     } catch (stateError) {
       console.error('Error decoding TikTok OAuth state:', stateError);
-      return res.redirect('http://localhost:3000/login?error=tiktok_oauth_failed');
+      return res.redirect(getFrontendUrl('/login?error=tiktok_oauth_failed'));
     }
     
     // Store token for the user from state parameter
@@ -1166,10 +1175,10 @@ app.get("/api/auth/tiktok/callback", async (req, res) => {
     await updateAnalyticsData(user.id);
     
     // Redirect to frontend dashboard
-    res.redirect('http://localhost:3000/dashboard?platform=tiktok&email=' + encodeURIComponent(userInfo.email));
+    res.redirect(getFrontendUrl('/dashboard?platform=tiktok&email=' + encodeURIComponent(userInfo.email)));
   } catch (err) {
     console.error('TikTok OAuth error:', err);
-    res.redirect('http://localhost:3000/login?error=tiktok_oauth_failed');
+    res.redirect(getFrontendUrl('/login?error=tiktok_oauth_failed'));
   }
 });
 
