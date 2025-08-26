@@ -183,11 +183,9 @@ class PlatformManager {
 
       // Generate monthly trend based on historical data
       let monthlyTrend;
-      if (userId) {
-        monthlyTrend = await this.historyService.calculateRevenueTrend(userId, totalRevenue);
-      } else {
-        monthlyTrend = this.generateMonthlyTrend(totalRevenue);
-      }
+      // Temporarily use the fixed generateMonthlyTrend for all users to fix the 3567 issue
+      monthlyTrend = this.generateMonthlyTrend(totalRevenue);
+      console.log(`Using fixed generateMonthlyTrend for user ${userId}, revenue: ${totalRevenue}`);
 
       const analyticsResult = {
         totalRevenue,
