@@ -101,6 +101,8 @@ if (process.env.GOOGLE_REDIRECT_URI) {
 
 // Twitch OAuth (passport strategy)
 export function setupTwitchPassport() {
+  console.log('Setting up Twitch Passport with callback URL:', process.env.TWITCH_REDIRECT_URI);
+  
   passport.use(new TwitchStrategy({
     clientID: process.env.TWITCH_CLIENT_ID,
     clientSecret: process.env.TWITCH_CLIENT_SECRET,

@@ -1002,6 +1002,8 @@ app.get("/api/auth/twitch", async (req, res, next) => {
     timestamp: Date.now()
   })).toString('base64');
   
+  console.log('Twitch OAuth request - callback URL:', process.env.TWITCH_REDIRECT_URI);
+  
   // Add state to the OAuth request
   passport.authenticate("twitch", { 
     scope: ["user:read:email", "analytics:read:games", "channel:read:subscriptions"],
