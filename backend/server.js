@@ -1005,37 +1005,58 @@ app.get("/api/auth/twitch", async (req, res, next) => {
   
   console.log('Twitch OAuth request - callback URL:', process.env.TWITCH_REDIRECT_URI);
   
-  // Add state to the OAuth request with explicit callback URL
-  passport.authenticate("twitch", { 
-    scope: ["user:read:email", "analytics:read:games", "channel:read:subscriptions"],
-    state: state,
-    callbackURL: process.env.TWITCH_REDIRECT_URI
-  })(req, res, next);
+  // Manually construct Twitch OAuth URL to ensure redirect_uri is included
+  const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=${process.env.TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.TWITCH_REDIRECT_URI)}&scope=${encodeURIComponent('user:read:email analytics:read:games channel:read:subscriptions')}&state=${encodeURIComponent(state)}`;
+  
+  console.log('Generated Twitch OAuth URL:', twitchAuthUrl);
+  res.redirect(twitchAuthUrl);
 });
 
-app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRedirect: getFrontendUrl("/login?error=twitch_oauth_failed") }), async (req, res) => {
+app.get("/api/auth/twitch/callback", async (req, res) => {
+  const { code, state, error } = req.query;
+  
   try {
-    logger.debug('Twitch callback - req.user:', req.user);
-    logger.debug('Twitch callback - state:', req.query.state);
+    logger.debug('Twitch callback - code:', !!code, 'state:', !!state, 'error:', error);
     
-    if (!req.user) {
-      console.error('No user data in Twitch callback');
+    if (error) {
+      console.error('Twitch OAuth error:', error);
       return res.redirect(getFrontendUrl('/login?error=twitch_oauth_failed'));
     }
     
-    const { accessToken, refreshToken, profile } = req.user;
-    logger.debug('Twitch tokens received:', { accessToken: !!accessToken, refreshToken: !!refreshToken, profile: !!profile });
-    
-    if (!profile || !profile.email) {
-      console.error('No email in Twitch profile:', profile);
+    if (!code) {
+      console.error('No authorization code received from Twitch');
       return res.redirect(getFrontendUrl('/login?error=twitch_oauth_failed'));
     }
     
-    // Get user info from state parameter instead of session
+    // Exchange authorization code for access token
+    const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.TWITCH_CLIENT_ID,
+        client_secret: process.env.TWITCH_CLIENT_SECRET,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: process.env.TWITCH_REDIRECT_URI
+      })
+    });
+    
+    const tokenData = await tokenResponse.json();
+    
+    if (!tokenResponse.ok) {
+      console.error('Failed to exchange code for token:', tokenData);
+      return res.redirect(getFrontendUrl('/login?error=twitch_oauth_failed'));
+    }
+    
+    logger.debug('Twitch tokens received:', { access_token: !!tokenData.access_token, refresh_token: !!tokenData.refresh_token });
+    
+    // Get user info from state parameter
     let userInfo;
     try {
-      if (req.query.state) {
-        userInfo = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
+      if (state) {
+        userInfo = JSON.parse(Buffer.from(state, 'base64').toString());
         logger.info('Retrieved user info from state:', userInfo.email);
       } else {
         throw new Error('No state parameter');
@@ -1053,10 +1074,22 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
     
     logger.debug('Storing Twitch token for user from state:', userInfo.email);
     
-    await storeToken(userInfo.email, 'twitch', { accessToken, refreshToken });
+    await storeToken(userInfo.email, 'twitch', { 
+      access_token: tokenData.access_token, 
+      refresh_token: tokenData.refresh_token 
+    });
     
-    // Get user's Twitch channel info
-    const twitchUser = profile.login; // Twitch username
+    // Get user's Twitch info using the access token
+    const userResponse = await fetch('https://api.twitch.tv/helix/users', {
+      headers: {
+        'Authorization': `Bearer ${tokenData.access_token}`,
+        'Client-Id': process.env.TWITCH_CLIENT_ID
+      }
+    });
+    
+    const userData = await userResponse.json();
+    const twitchUser = userData.data?.[0]?.login || 'authenticated_user';
+    const twitchDisplayName = userData.data?.[0]?.display_name || 'Twitch Channel';
     
     // Add platform to user's connected platforms
     const user = await findUserByEmail(userInfo.email);
@@ -1066,7 +1099,7 @@ app.get("/api/auth/twitch/callback", passport.authenticate("twitch", { failureRe
         connectedPlatforms.push({ 
           name: 'twitch', 
           identifier: twitchUser || 'authenticated_user',
-          title: profile.display_name || 'Twitch Channel'
+          title: twitchDisplayName || 'Twitch Channel'
         });
         await updateUserPlatforms(user.id, connectedPlatforms);
         logger.info('Added Twitch platform to user:', user.email, 'Platforms:', connectedPlatforms);
