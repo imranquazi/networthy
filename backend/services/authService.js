@@ -102,6 +102,8 @@ if (process.env.GOOGLE_REDIRECT_URI) {
 // Twitch OAuth (passport strategy)
 export function setupTwitchPassport() {
   console.log('Setting up Twitch Passport with callback URL:', process.env.TWITCH_REDIRECT_URI);
+  console.log('Twitch Client ID:', process.env.TWITCH_CLIENT_ID ? 'set' : 'missing');
+  console.log('Twitch Client Secret:', process.env.TWITCH_CLIENT_SECRET ? 'set' : 'missing');
   
   passport.use(new TwitchStrategy({
     clientID: process.env.TWITCH_CLIENT_ID,
@@ -113,6 +115,7 @@ export function setupTwitchPassport() {
       'channel:read:subscriptions'
     ]
   }, async (accessToken, refreshToken, profile, done) => {
+    console.log('Twitch OAuth callback - tokens received');
     // You can store tokens here if needed
     done(null, { accessToken, refreshToken, profile });
   }));

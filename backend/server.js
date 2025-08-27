@@ -301,6 +301,7 @@ passport.deserializeUser((user, done) => {
   done(null, user);
 });
 
+// Initialize Passport with correct callback URL
 setupTwitchPassport();
 
 app.use(express.json());
@@ -1004,10 +1005,11 @@ app.get("/api/auth/twitch", async (req, res, next) => {
   
   console.log('Twitch OAuth request - callback URL:', process.env.TWITCH_REDIRECT_URI);
   
-  // Add state to the OAuth request
+  // Add state to the OAuth request with explicit callback URL
   passport.authenticate("twitch", { 
     scope: ["user:read:email", "analytics:read:games", "channel:read:subscriptions"],
-    state: state
+    state: state,
+    callbackURL: process.env.TWITCH_REDIRECT_URI
   })(req, res, next);
 });
 
