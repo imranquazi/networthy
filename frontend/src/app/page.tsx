@@ -78,7 +78,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Gradient background for top section */}
-      <div className="absolute inset-0 h-[1000px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
+      <div className="absolute inset-0 h-[1200px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
       {/* Header */}
       <header className="relative z-10 supports-[backdrop-filter] border-none">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
@@ -161,9 +161,23 @@ export default function HomePage() {
       </section>
 
       {/* Video Section */}
-      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl relative z-10">
+      <section className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-7xl relative z-10">
         <div className="mx-auto max-w-4xl text-center">
           <div className="relative aspect-video rounded-lg overflow-hidden shadow-2xl bg-gray-100">
+            {/* Custom poster overlay - will be hidden when video plays */}
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-10" id="video-poster">
+              <div className="text-center">
+                <Image 
+                  src="/assets/Asset 10.png" 
+                  alt="Networthy Logo" 
+                  width={150}
+                  height={150}
+                  className="mx-auto mb-4 object-contain" 
+                />
+                <p className="text-white text-lg font-semibold">Click to play video</p>
+              </div>
+            </div>
+            
             <video 
               className="w-full h-full object-cover"
               controls
@@ -177,20 +191,14 @@ export default function HomePage() {
                 const poster = document.getElementById('video-poster');
                 if (poster) poster.style.display = 'flex';
               }}
+              onError={(e) => {
+                console.error('Video error:', e);
+                const target = e.target as HTMLVideoElement;
+                console.error('Video src:', target.src);
+              }}
+              onLoadStart={() => console.log('Video loading started')}
+              onCanPlay={() => console.log('Video can play')}
             >
-              {/* Custom poster overlay - will be hidden when video plays */}
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-10" id="video-poster">
-                <div className="text-center">
-                  <Image 
-                    src="/assets/Asset 10.png" 
-                    alt="Networthy Logo" 
-                    width={150}
-                    height={150}
-                    className="mx-auto mb-4 object-contain" 
-                  />
-                  <p className="text-white text-lg font-semibold">Click to play video</p>
-                </div>
-              </div>
               <source src="/assets/networthy-beta-trailer.mp4" type="video/mp4" />
               <source src="/assets/networthy-beta-trailer.mov" type="video/quicktime" />
               <p className="absolute inset-0 flex items-center justify-center text-gray-500">
