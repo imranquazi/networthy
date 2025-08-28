@@ -606,7 +606,7 @@ export default function DashboardPage() {
                     });
                     
                     if (refreshResponse.ok) {
-                      // Simple approach: just call fetchData with a small delay to ensure cache is cleared
+                      // Simple approach: just call fetchData
                       setTimeout(() => {
                         fetchData();
                       }, 100);

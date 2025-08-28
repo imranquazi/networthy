@@ -1778,19 +1778,15 @@ app.post("/api/refresh", async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    // Only clear platform data cache, not authentication cache
+    // Simple and safe: clear only this user's cache
     const userCacheKey = user.id;
     userPlatformCache.delete(userCacheKey);
     userAnalyticsCache.delete(userCacheKey);
     userLastUpdate.delete(userCacheKey);
     
-    console.log('Platform cache cleared for user:', user.email);
-    console.log('User connected platforms:', user.connected_platforms);
-    
     res.json({ 
       success: true, 
-      message: 'Data refreshed successfully',
-      userPlatforms: user.connected_platforms
+      message: 'Data refreshed successfully'
     });
   } catch (error) {
     console.error('Error refreshing data:', error);
