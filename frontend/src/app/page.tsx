@@ -192,7 +192,7 @@ export default function HomePage() {
                 const poster = document.getElementById('video-poster');
                 if (poster) poster.style.display = 'flex';
               }}
-              onError={(e) => {
+              onError={() => {
                 // Show error message in poster
                 const poster = document.getElementById('video-poster');
                 if (poster) {

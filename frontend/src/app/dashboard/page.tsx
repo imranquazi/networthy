@@ -330,11 +330,11 @@ export default function DashboardPage() {
     } finally {
       setIsFetching(false);
     }
-  }, []); // Remove isFetching dependency to prevent infinite loops
+  }, [isFetching, connectedPlatforms]); // Add missing dependencies
 
   useEffect(() => {
     fetchData();
-  }, []); // Only run once on mount
+  }, [fetchData]); // Add fetchData dependency
 
   const getPlatformIcon = (platform: string) => {
     switch (platform.toLowerCase()) {
