@@ -163,26 +163,40 @@ export default function HomePage() {
       {/* Video Section */}
       <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl relative z-10">
         <div className="mx-auto max-w-4xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-8">
-            See Networthy in Action
-          </h2>
           <div className="relative aspect-video rounded-lg overflow-hidden shadow-2xl bg-gray-100">
             <video 
               className="w-full h-full object-cover"
               controls
               preload="metadata"
-              poster="/assets/Asset 10.png"
-              onError={(e) => console.error('Video error:', e)}
-              onLoadStart={() => console.log('Video loading started')}
-              onCanPlay={() => console.log('Video can play')}
+              style={{ objectPosition: 'center 20%' }}
+              onPlay={() => {
+                const poster = document.getElementById('video-poster');
+                if (poster) poster.style.display = 'none';
+              }}
+              onPause={() => {
+                const poster = document.getElementById('video-poster');
+                if (poster) poster.style.display = 'flex';
+              }}
             >
+              {/* Custom poster overlay - will be hidden when video plays */}
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-10" id="video-poster">
+                <div className="text-center">
+                  <Image 
+                    src="/assets/Asset 10.png" 
+                    alt="Networthy Logo" 
+                    width={150}
+                    height={150}
+                    className="mx-auto mb-4 object-contain" 
+                  />
+                  <p className="text-white text-lg font-semibold">Click to play video</p>
+                </div>
+              </div>
+              <source src="/assets/networthy-beta-trailer.mp4" type="video/mp4" />
               <source src="/assets/networthy-beta-trailer.mov" type="video/quicktime" />
-              <source src="/assets/networthy-beta-trailer.mov" type="video/mp4" />
-              <source src="/assets/networthy-beta-trailer.mov" type="video/webm" />
               <p className="absolute inset-0 flex items-center justify-center text-gray-500">
                 Your browser does not support the video tag. 
                 <br />
-                <a href="/assets/networthy-beta-trailer.mov" className="text-blue-500 underline ml-1">
+                <a href="/assets/networthy-beta-trailer.mp4" className="text-blue-500 underline ml-1">
                   Download video
                 </a>
               </p>
