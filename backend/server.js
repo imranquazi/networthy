@@ -380,14 +380,14 @@ async function updatePlatformData(userId = null) {
     const platformsToUse = connectedPlatforms;
     
     if (platformsToUse.length === 0) {
-          logger.debug('No platforms connected, skipping update');
-    return;
+      logger.debug('No platforms connected, skipping update');
+      return;
     }
 
     // Check if cache is still valid
     if (isCacheValid('global')) {
-          logger.debug('Using cached platform data');
-    return;
+      logger.debug('Using cached platform data');
+      return;
     }
 
     logger.info('Updating platform data from APIs...');
@@ -408,8 +408,8 @@ async function updateAnalyticsData(userId = null) {
     const userPlatformData = userPlatformCache.get('global');
     
     if (!userPlatformData || userPlatformData.length === 0) {
-          logger.debug('No platform data available for analytics');
-    return;
+      logger.debug('No platform data available for analytics');
+      return;
     }
 
     const analytics = await platformManager.calculateAnalytics(userPlatformData);
@@ -1770,20 +1770,14 @@ app.post("/api/refresh", async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    // Clear all caches to force fresh data fetch
-    platformManager.clearCache();
+    // Simply clear the cache - the next API call will fetch fresh data
     userPlatformCache.clear();
     userAnalyticsCache.clear();
     userLastUpdate.clear();
     
-    // Force update platform data for this user
-    await updatePlatformData(user.id);
-    await updateAnalyticsData(user.id);
-    
     res.json({ 
       success: true, 
-      message: 'Data refreshed successfully',
-      cacheStats: platformManager.getCacheStats()
+      message: 'Data refreshed successfully'
     });
   } catch (error) {
     console.error('Error refreshing data:', error);

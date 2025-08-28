@@ -592,9 +592,30 @@ export default function DashboardPage() {
               <Button 
                 variant="ghost" 
                 size="sm"
-                onClick={() => {
+                onClick={async () => {
                   setLoading(true);
-                  fetchData();
+                  try {
+                    // Call the refresh endpoint first
+                    const authToken = localStorage.getItem('authToken');
+                    const refreshResponse = await fetch(getApiUrl('/api/refresh'), {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                      }
+                    });
+                    
+                    if (refreshResponse.ok) {
+                      // Then fetch fresh data
+                      await fetchData();
+                    } else {
+                      console.error('Refresh failed');
+                      setLoading(false);
+                    }
+                  } catch (error) {
+                    console.error('Error refreshing data:', error);
+                    setLoading(false);
+                  }
                 }}
                 title="Refresh Data"
               >
