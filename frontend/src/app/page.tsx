@@ -164,72 +164,11 @@ export default function HomePage() {
       <section className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-7xl relative z-10">
         <div className="mx-auto max-w-4xl text-center">
           <div className="relative aspect-video rounded-lg overflow-hidden shadow-2xl bg-gray-100">
-            {/* Custom poster overlay - will be hidden when video plays */}
-            <div 
-              className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-10 cursor-pointer" 
-              id="video-poster"
-              onClick={() => {
-                const video = document.getElementById('networthy-video') as HTMLVideoElement;
-                if (video) {
-                  video.play();
-                }
-              }}
-            >
-              <div className="text-center">
-                <Image 
-                  src="/assets/Asset 10.png" 
-                  alt="Networthy Logo" 
-                  width={150}
-                  height={150}
-                  className="mx-auto mb-4 object-contain" 
-                />
-                <p className="text-white text-lg font-semibold" id="loading-text">Loading video...</p>
-              </div>
-            </div>
-            
             <video 
-              id="networthy-video"
               className="w-full h-full object-cover"
               controls
               preload="metadata"
               style={{ objectPosition: 'center 20%' }}
-              onPlay={() => {
-                const poster = document.getElementById('video-poster');
-                if (poster) poster.style.display = 'none';
-              }}
-              onPause={() => {
-                const poster = document.getElementById('video-poster');
-                if (poster) poster.style.display = 'flex';
-              }}
-              onError={(e) => {
-                console.error('Video error:', e);
-                const poster = document.getElementById('video-poster');
-                if (poster) {
-                  poster.innerHTML = `
-                    <div class="text-center">
-                      <p class="text-white text-lg font-semibold mb-2">Video failed to load</p>
-                      <p class="text-white text-sm mb-4">Check browser console for details</p>
-                      <a href="/assets/networthy-beta-trailer.mp4" class="text-blue-400 underline hover:text-blue-300" download>
-                        Download video instead
-                      </a>
-                    </div>
-                  `;
-                }
-              }}
-              onLoadStart={() => {
-                console.log('Video loading started');
-                const loadingText = document.getElementById('loading-text');
-                if (loadingText) loadingText.textContent = 'Loading video...';
-              }}
-              onCanPlay={() => {
-                console.log('Video can play');
-                const loadingText = document.getElementById('loading-text');
-                if (loadingText) loadingText.textContent = 'Click to play video';
-                // Don't hide poster yet - let user click to start
-              }}
-              onLoadedData={() => {
-                console.log('Video data loaded');
-              }}
             >
               <source src="/assets/networthy-beta-trailer.mp4" type="video/mp4" />
               <source src="/assets/networthy-beta-trailer.mov" type="video/quicktime" />
