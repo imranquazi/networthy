@@ -606,8 +606,10 @@ export default function DashboardPage() {
                     });
                     
                     if (refreshResponse.ok) {
-                      // Then fetch fresh data
-                      await fetchData();
+                      // Simple approach: just call fetchData with a small delay to ensure cache is cleared
+                      setTimeout(() => {
+                        fetchData();
+                      }, 100);
                       console.log('Header refresh completed');
                     } else {
                       console.error('Refresh failed');
