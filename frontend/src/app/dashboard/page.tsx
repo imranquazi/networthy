@@ -608,6 +608,7 @@ export default function DashboardPage() {
                     if (refreshResponse.ok) {
                       // Then fetch fresh data
                       await fetchData();
+                      console.log('Header refresh completed');
                     } else {
                       console.error('Refresh failed');
                       setLoading(false);
@@ -851,6 +852,7 @@ export default function DashboardPage() {
                           cache: 'no-cache'
                         });
                         const data = await response.json();
+                        console.log('Platform data after refresh:', data);
                         setPlatformData(data);
                       } else {
                         console.error('Refresh failed');

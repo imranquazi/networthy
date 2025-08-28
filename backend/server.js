@@ -1775,9 +1775,13 @@ app.post("/api/refresh", async (req, res) => {
     userAnalyticsCache.clear();
     userLastUpdate.clear();
     
+    console.log('Cache cleared for user:', user.email);
+    console.log('User connected platforms:', user.connected_platforms);
+    
     res.json({ 
       success: true, 
-      message: 'Data refreshed successfully'
+      message: 'Data refreshed successfully',
+      userPlatforms: user.connected_platforms
     });
   } catch (error) {
     console.error('Error refreshing data:', error);
