@@ -193,18 +193,12 @@ export default function HomePage() {
                 if (poster) poster.style.display = 'flex';
               }}
               onError={(e) => {
-                console.error('Video error:', e);
-                const target = e.target as HTMLVideoElement;
-                console.error('Video src:', target.src);
-                console.error('Video error details:', target.error);
-                
                 // Show error message in poster
                 const poster = document.getElementById('video-poster');
                 if (poster) {
                   poster.innerHTML = `
                     <div class="text-center">
                       <p class="text-white text-lg font-semibold mb-2">Video failed to load</p>
-                      <p class="text-white text-sm mb-4">Check console for details</p>
                       <a href="/assets/networthy-beta-trailer.mp4" class="text-blue-400 underline hover:text-blue-300">
                         Download video instead
                       </a>
@@ -213,7 +207,6 @@ export default function HomePage() {
                 }
               }}
               onLoadStart={() => {
-                console.log('Video loading started');
                 const poster = document.getElementById('video-poster');
                 if (poster) {
                   const loadingText = poster.querySelector('p:last-child');
@@ -221,7 +214,6 @@ export default function HomePage() {
                 }
               }}
               onCanPlay={() => {
-                console.log('Video can play');
                 const poster = document.getElementById('video-poster');
                 if (poster) {
                   const loadingText = poster.querySelector('p:last-child');
