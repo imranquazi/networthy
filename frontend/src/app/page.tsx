@@ -175,7 +175,7 @@ export default function HomePage() {
                   className="mx-auto mb-4 object-contain" 
                 />
                 <p className="text-white text-lg font-semibold">Click to play video</p>
-                <p className="text-white text-sm mt-2">Loading video...</p>
+                <p className="text-white text-sm mt-2" id="loading-text">Loading video...</p>
               </div>
             </div>
             
@@ -192,14 +192,15 @@ export default function HomePage() {
                 const poster = document.getElementById('video-poster');
                 if (poster) poster.style.display = 'flex';
               }}
-              onError={() => {
-                // Show error message in poster
+              onError={(e) => {
+                console.error('Video error:', e);
                 const poster = document.getElementById('video-poster');
                 if (poster) {
                   poster.innerHTML = `
                     <div class="text-center">
                       <p class="text-white text-lg font-semibold mb-2">Video failed to load</p>
-                      <a href="/assets/networthy-beta-trailer.mp4" class="text-blue-400 underline hover:text-blue-300">
+                      <p class="text-white text-sm mb-4">Check browser console for details</p>
+                      <a href="/assets/networthy-beta-trailer.mp4" class="text-blue-400 underline hover:text-blue-300" download>
                         Download video instead
                       </a>
                     </div>
@@ -207,18 +208,17 @@ export default function HomePage() {
                 }
               }}
               onLoadStart={() => {
-                const poster = document.getElementById('video-poster');
-                if (poster) {
-                  const loadingText = poster.querySelector('p:last-child');
-                  if (loadingText) loadingText.textContent = 'Loading video...';
-                }
+                console.log('Video loading started');
+                const loadingText = document.getElementById('loading-text');
+                if (loadingText) loadingText.textContent = 'Loading video...';
               }}
               onCanPlay={() => {
-                const poster = document.getElementById('video-poster');
-                if (poster) {
-                  const loadingText = poster.querySelector('p:last-child');
-                  if (loadingText) loadingText.textContent = 'Click to play video';
-                }
+                console.log('Video can play');
+                const loadingText = document.getElementById('loading-text');
+                if (loadingText) loadingText.textContent = 'Click to play video';
+              }}
+              onLoadedData={() => {
+                console.log('Video data loaded');
               }}
             >
               <source src="/assets/networthy-beta-trailer.mp4" type="video/mp4" />
@@ -226,7 +226,7 @@ export default function HomePage() {
               <p className="absolute inset-0 flex items-center justify-center text-gray-500">
                 Your browser does not support the video tag. 
                 <br />
-                <a href="/assets/networthy-beta-trailer.mp4" className="text-blue-500 underline ml-1">
+                <a href="/assets/networthy-beta-trailer.mp4" className="text-blue-500 underline ml-1" download>
                   Download video
                 </a>
               </p>
