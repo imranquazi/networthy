@@ -834,38 +834,7 @@ export default function DashboardPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Platform Performance</CardTitle>
-                <Button
-                  onClick={async () => {
-                    try {
-                      // Call the refresh endpoint first
-                      const authToken = localStorage.getItem('authToken');
-                      const refreshResponse = await fetch(getApiUrl('/api/refresh'), {
-                        method: 'POST',
-                        headers: {
-                          'Authorization': `Bearer ${authToken}`,
-                          'Content-Type': 'application/json'
-                        }
-                      });
-                      
-                      if (refreshResponse.ok) {
-                        // Then fetch fresh data
-                        const response = await fetch(getApiUrl('/api/platforms'), {
-                          credentials: 'include',
-                          cache: 'no-cache'
-                        });
-                        const data = await response.json();
-                        console.log('Platform data after refresh:', data);
-                        setPlatformData(data);
-                      } else {
-                        console.error('Refresh failed');
-                      }
-                    } catch (error) {
-                      console.error('Error refreshing data:', error);
-                    }
-                  }}
-                >
-                  Refresh Data
-                </Button>
+
               </div>
             </CardHeader>
             <CardContent>
