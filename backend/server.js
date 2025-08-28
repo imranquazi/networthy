@@ -1315,6 +1315,14 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
     const userId = user ? user.id : null;
     const userCacheKey = userId || 'anonymous';
     
+    // Debug user authentication and platforms
+    console.log('User authentication debug:');
+    console.log('- User found:', !!user);
+    console.log('- User email:', user?.email);
+    console.log('- User ID:', user?.id);
+    console.log('- User connected_platforms:', user?.connected_platforms);
+    console.log('- userConnectedPlatforms variable:', userConnectedPlatforms);
+    
     // Check if cache is stale or if user has connected platforms (force refresh)
     const forceRefresh = req.query.refresh === 'true';
     const userLastUpdateTime = userLastUpdate.get(userCacheKey) || 0;
