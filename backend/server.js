@@ -1006,7 +1006,9 @@ app.get("/api/auth/twitch", async (req, res, next) => {
   console.log('Twitch OAuth request - callback URL:', process.env.TWITCH_REDIRECT_URI);
   
   // Manually construct Twitch OAuth URL to ensure redirect_uri is included
-  const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=${process.env.TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.TWITCH_REDIRECT_URI)}&scope=${encodeURIComponent('user:read:email analytics:read:games channel:read:subscriptions')}&state=${encodeURIComponent(state)}`;
+  // Ensure we use HTTPS for production
+  const redirectUri = process.env.TWITCH_REDIRECT_URI.replace('http://', 'https://');
+  const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=${process.env.TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent('user:read:email analytics:read:games channel:read:subscriptions')}&state=${encodeURIComponent(state)}`;
   
   console.log('Generated Twitch OAuth URL:', twitchAuthUrl);
   res.redirect(twitchAuthUrl);
@@ -1039,7 +1041,7 @@ app.get("/api/auth/twitch/callback", async (req, res) => {
         client_secret: process.env.TWITCH_CLIENT_SECRET,
         code: code,
         grant_type: 'authorization_code',
-        redirect_uri: process.env.TWITCH_REDIRECT_URI
+        redirect_uri: process.env.TWITCH_REDIRECT_URI.replace('http://', 'https://')
       })
     });
     
@@ -1730,9 +1732,53 @@ app.post("/api/analytics", async (req, res) => {
 // Manual data refresh
 app.post("/api/refresh", async (req, res) => {
   try {
-    await updatePlatformData();
-    await updateAnalyticsData();
+    // Get user authentication (session or token-based)
+    let user = null;
+    
+    // Try session-based authentication first
+    if (req.session && req.session.user && req.session.user.email) {
+      user = await findUserByEmail(req.session.user.email);
+    } else {
+      // Try token-based authentication
+      const authHeader = req.headers.authorization;
+      const tokenParam = req.query.token;
+      
+      let token = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      } else if (tokenParam) {
+        token = tokenParam;
+      }
+      
+      if (token) {
+        try {
+          const decoded = Buffer.from(token, 'base64').toString('utf-8');
+          const [email, timestamp] = decoded.split(':');
+          
+          const tokenTime = parseInt(timestamp);
+          const currentTime = Date.now();
+          if (currentTime - tokenTime <= 24 * 60 * 60 * 1000) {
+            user = await findUserByEmail(email);
+          }
+        } catch (decodeError) {
+          console.error('Token decode error:', decodeError);
+        }
+      }
+    }
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Clear all caches to force fresh data fetch
     platformManager.clearCache();
+    userPlatformCache.clear();
+    userAnalyticsCache.clear();
+    userLastUpdate.clear();
+    
+    // Force update platform data for this user
+    await updatePlatformData(user.id);
+    await updateAnalyticsData(user.id);
     
     res.json({ 
       success: true, 
