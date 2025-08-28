@@ -160,6 +160,27 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Video Section */}
+      <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl relative z-10">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-8">
+            See Networthy in Action
+          </h2>
+          <div className="relative aspect-video rounded-lg overflow-hidden shadow-2xl">
+            <video 
+              className="w-full h-full object-cover"
+              controls
+              preload="metadata"
+              poster="/assets/Asset 10.png"
+            >
+              <source src="/assets/networthy-beta-trailer.mov" type="video/quicktime" />
+              <source src="/assets/networthy-beta-trailer.mov" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section */}
       <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl relative z-10">
         <div className="mx-auto max-w-6xl">
