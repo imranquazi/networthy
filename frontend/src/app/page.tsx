@@ -166,16 +166,26 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-8">
             See Networthy in Action
           </h2>
-          <div className="relative aspect-video rounded-lg overflow-hidden shadow-2xl">
+          <div className="relative aspect-video rounded-lg overflow-hidden shadow-2xl bg-gray-100">
             <video 
               className="w-full h-full object-cover"
               controls
               preload="metadata"
               poster="/assets/Asset 10.png"
+              onError={(e) => console.error('Video error:', e)}
+              onLoadStart={() => console.log('Video loading started')}
+              onCanPlay={() => console.log('Video can play')}
             >
               <source src="/assets/networthy-beta-trailer.mov" type="video/quicktime" />
               <source src="/assets/networthy-beta-trailer.mov" type="video/mp4" />
-              Your browser does not support the video tag.
+              <source src="/assets/networthy-beta-trailer.mov" type="video/webm" />
+              <p className="absolute inset-0 flex items-center justify-center text-gray-500">
+                Your browser does not support the video tag. 
+                <br />
+                <a href="/assets/networthy-beta-trailer.mov" className="text-blue-500 underline ml-1">
+                  Download video
+                </a>
+              </p>
             </video>
           </div>
         </div>
