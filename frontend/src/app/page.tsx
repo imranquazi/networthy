@@ -582,11 +582,11 @@ export default function HomePage() {
 
       {/* Legal & Social Section */}
       <section className="container mx-auto px-4 py-16 sm:px-6 lg:px-8 max-w-7xl">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="flex flex-col md:flex-row gap-8 justify-center">
             
             {/* Terms & Conditions */}
-            <Card>
+            <Card className="flex-1 max-w-sm">
               <CardHeader>
                 <CardTitle>Terms & Conditions</CardTitle>
               </CardHeader>
@@ -601,7 +601,7 @@ export default function HomePage() {
             </Card>
 
             {/* Social Media */}
-            <Card>
+            <Card className="flex-1 max-w-sm">
               <CardHeader>
                 <CardTitle>Follow Us</CardTitle>
               </CardHeader>
