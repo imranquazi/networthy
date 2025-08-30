@@ -559,7 +559,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="text-3xl font-bold mb-6">Contact Us</h2>
           <p className="text-lg text-muted-foreground mb-8">
-            Have questions, feedback, or need support? We'd love to hear from you.
+            Have questions, feedback, or need support? We&apos;d love to hear from you.
           </p>
           <div className="grid md:grid-cols-2 gap-8">
             <Card>
