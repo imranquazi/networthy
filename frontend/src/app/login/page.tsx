@@ -105,7 +105,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Gradient background for top section */}
-      <div className="absolute inset-0 h-[1000px] bg-gradient-to-b from-[#71bf49] via-gray-950 to-[#71bf49] pointer-events-none"></div>
+      <div className="absolute inset-0 h-[1000px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
       <div className="relative z-10 flex items-center justify-center p-6 min-h-screen">
       <div className="w-full max-w-md">
         {/* Logo and Header */}
@@ -122,7 +122,7 @@ export default function LoginPage() {
             </div>
           </div>
           <h1 className="text-2xl font-bold text-white">Welcome Back</h1>
-          <p className="text-white/80">Sign in to your Networthy account</p>
+          <p className="text-sm text-white/80">Sign in to your Networthy account</p>
         </div>
 
         {/* Login Form */}
@@ -130,7 +130,7 @@ export default function LoginPage() {
           <CardHeader>
             <CardTitle>Sign In</CardTitle>
             <CardDescription>
-              Enter your credentials to access your dashboard
+              Enter your credentials below
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -173,7 +173,7 @@ export default function LoginPage() {
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
                 Don&apos;t have an account?{' '}
-                <Link href="/register" className="text-primary hover:underline font-medium">
+                <Link href="/register" className="text-primary hover:underline font-bold">
                   Sign up here
                 </Link>
               </p>
