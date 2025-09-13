@@ -105,7 +105,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Gradient background for top section */}
-      <div className="absolute inset-0 h-[600px] bg-gradient-to-b from-gray-950 via-[#71bf49] to-white pointer-events-none"></div>
+      <div className="absolute inset-0 h-[1000px] bg-gradient-to-b from-[#71bf49] via-gray-950 to-[#71bf49] pointer-events-none"></div>
       <div className="relative z-10 flex items-center justify-center p-6 min-h-screen">
       <div className="w-full max-w-md">
         {/* Logo and Header */}
