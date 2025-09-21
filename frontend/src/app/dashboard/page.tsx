@@ -120,6 +120,9 @@ interface PlatformData {
   revenue: number;
   growth: number;
   error?: string;
+  channelId?: string;
+  channelName?: string;
+  thumbnail?: string;
 }
 
 interface AnalyticsData {
@@ -294,7 +297,22 @@ export default function DashboardPage() {
         }
         
         setPlatformData(validPlatforms);
-        // Simplified logic: just check if data is mock or not
+        
+        // Extract connected platforms from the platform data
+        // A platform is "connected" if it has channel-specific information (works for YouTube, Twitch, and TikTok)
+        const actualConnectedPlatforms = platforms
+          .filter(platform => {
+            // Check for channel-specific properties that indicate real connection
+            const hasChannelInfo = platform.channelId || platform.channelName || platform.thumbnail;
+            console.log(`Platform ${platform.name}: hasChannelInfo=${hasChannelInfo}, channelId=${platform.channelId}, channelName=${platform.channelName}, thumbnail=${platform.thumbnail}`);
+            return hasChannelInfo;
+          })
+          .map(platform => platform.name.toLowerCase());
+        console.log('Extracted connected platforms from data:', actualConnectedPlatforms);
+        setConnectedPlatforms(actualConnectedPlatforms);
+        
+        // Improved logic: check if data is mock or real
+        // Mock data has specific hardcoded values, real data has actual channel info
         const hasRealData = platforms.some((platform: PlatformData) => {
           const isMockData = (
             (platform.name === 'YouTube' && platform.subscribers === 125000 && platform.views === 2500000 && platform.revenue === 1200) ||
@@ -302,10 +320,15 @@ export default function DashboardPage() {
             (platform.name === 'TikTok' && platform.followers === 89000 && platform.views === 1200000 && platform.revenue === 430)
           );
           
-          return !isMockData;
+          // If it's not mock data AND has channel info (like channelId or channelName), it's real data
+          const hasChannelInfo = platform.channelId || platform.channelName || platform.thumbnail;
+          
+          console.log(`Platform ${platform.name}: isMockData=${isMockData}, hasChannelInfo=${hasChannelInfo}, channelId=${platform.channelId}, channelName=${platform.channelName}`);
+          
+          return !isMockData && hasChannelInfo;
         });
         
-
+        console.log('Has real data:', hasRealData);
 
         setPlatformData(platforms);
         setAnalyticsData(analytics);
