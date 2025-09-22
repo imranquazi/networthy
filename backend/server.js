@@ -1647,6 +1647,18 @@ app.get("/api/analytics", async (req, res) => {
       }
     }
     
+    // CRITICAL FIX: Check if we have real platform data but analytics is still using mock data
+    // This happens when the platforms endpoint has real data but analytics endpoint doesn't
+    const hasRealPlatformData = platformData.some(platform => {
+      return platform.channelId || platform.channelName || platform.thumbnail;
+    });
+    
+    if (hasRealPlatformData) {
+      console.log('Analytics: Detected real platform data, using it for analytics calculation');
+    } else {
+      console.log('Analytics: Using mock/default data for analytics calculation');
+    }
+    
     // Apply manual revenue overrides to platform data before calculating analytics
     const platformDataWithOverrides = platformData.map(platform => {
       if (manualRevenueOverrides[platform.name]) {
