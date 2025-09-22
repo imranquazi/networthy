@@ -193,10 +193,8 @@ export default function DashboardPage() {
         
         if (authRes && authRes.ok && authData?.authenticated) {
           setAuthStatus({ authenticated: true, user: authData.user });
-          // Set connected platforms if available
-          if (authData.user && authData.user.platform) {
-            setConnectedPlatforms(authData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
-          }
+          // Don't set connected platforms here - let the platform data processing handle it
+          // This prevents race conditions and ensures we use the actual platform data
         } else if (token) {
           // If we have a token but auth failed, try to continue anyway
           console.log('Auth failed but token exists, continuing with token-based requests');
@@ -247,11 +245,6 @@ export default function DashboardPage() {
       let platforms, analytics;
       
       try {
-        console.log('Making API requests to:', {
-          platforms: getApiUrl(`/api/platforms${refreshParam}`),
-          analytics: getApiUrl(`/api/analytics${refreshParam}`)
-        });
-        
         const [platformsRes, analyticsRes] = await Promise.all([
           fetch(getApiUrl(`/api/platforms${refreshParam}`), {
             credentials: 'include',
@@ -264,11 +257,6 @@ export default function DashboardPage() {
             headers
           })
         ]);
-        
-        console.log('API responses:', {
-          platforms: { status: platformsRes.status, ok: platformsRes.ok },
-          analytics: { status: analyticsRes.status, ok: analyticsRes.ok }
-        });
 
         if (!platformsRes.ok || !analyticsRes.ok) {
           throw new Error(`API request failed: platforms=${platformsRes.status}, analytics=${analyticsRes.status}`);
@@ -276,8 +264,6 @@ export default function DashboardPage() {
 
         platforms = await platformsRes.json();
         analytics = await analyticsRes.json();
-        
-        console.log('Raw analytics data received:', analytics);
       } catch (error) {
         console.error('Error fetching data:', error);
         setDataStatus('mock');
@@ -321,6 +307,8 @@ export default function DashboardPage() {
           })
           .map(platform => platform.name.toLowerCase());
         console.log('Extracted connected platforms from data:', actualConnectedPlatforms);
+        
+        // Update connected platforms state immediately
         setConnectedPlatforms(actualConnectedPlatforms);
         
         // Improved logic: check if data is mock or real
