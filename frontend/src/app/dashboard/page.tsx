@@ -247,6 +247,11 @@ export default function DashboardPage() {
       let platforms, analytics;
       
       try {
+        console.log('Making API requests to:', {
+          platforms: getApiUrl(`/api/platforms${refreshParam}`),
+          analytics: getApiUrl(`/api/analytics${refreshParam}`)
+        });
+        
         const [platformsRes, analyticsRes] = await Promise.all([
           fetch(getApiUrl(`/api/platforms${refreshParam}`), {
             credentials: 'include',
@@ -259,6 +264,11 @@ export default function DashboardPage() {
             headers
           })
         ]);
+        
+        console.log('API responses:', {
+          platforms: { status: platformsRes.status, ok: platformsRes.ok },
+          analytics: { status: analyticsRes.status, ok: analyticsRes.ok }
+        });
 
         if (!platformsRes.ok || !analyticsRes.ok) {
           throw new Error(`API request failed: platforms=${platformsRes.status}, analytics=${analyticsRes.status}`);
@@ -266,6 +276,8 @@ export default function DashboardPage() {
 
         platforms = await platformsRes.json();
         analytics = await analyticsRes.json();
+        
+        console.log('Raw analytics data received:', analytics);
       } catch (error) {
         console.error('Error fetching data:', error);
         setDataStatus('mock');
