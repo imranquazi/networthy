@@ -1619,10 +1619,15 @@ app.get("/api/analytics", async (req, res) => {
     const userId = user ? user.id : null;
     const userCacheKey = userId || 'anonymous';
     
-    // Get platform data from user-specific cache
+    // Get platform data from user-specific cache (same as platforms endpoint)
     let platformData = userPlatformCache.get(userCacheKey);
     
-    // If no cached data, fetch it using the same logic as the platforms endpoint
+    console.log('Analytics endpoint debug:');
+    console.log('- userCacheKey:', userCacheKey);
+    console.log('- userConnectedPlatforms:', userConnectedPlatforms);
+    console.log('- cached platformData:', platformData);
+    
+    // If no cached data, use the same logic as the platforms endpoint
     if (!platformData) {
       // Use the same logic as the platforms endpoint
       if (userConnectedPlatforms.length > 0) {
