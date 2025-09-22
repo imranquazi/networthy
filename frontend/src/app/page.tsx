@@ -264,7 +264,7 @@ export default function HomePage() {
               </div>
               <h3 className="mt-4 text-lg font-semibold">Connect Your Platforms</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Link your YouTube, Twitch, TikTok, and other creator accounts to start tracking.
+                Link your YouTube, Twitch, TikTok, and other creator accounts to start tracking in one place.
               </p>
             </div>
             
@@ -607,7 +607,7 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Stay updated with the latest features and creator insights.
+                  Stay updated with the latest features
                 </p>
                 <Button 
                   variant="outline" 
