@@ -1631,6 +1631,8 @@ app.get("/api/analytics", async (req, res) => {
     console.log('- userCacheKey:', userCacheKey);
     console.log('- userConnectedPlatforms:', userConnectedPlatforms);
     console.log('- cached platformData:', platformData);
+    console.log('- Cache keys available:', Array.from(userPlatformCache.keys()));
+    console.log('- Cache size:', userPlatformCache.size);
     
     // If no cached data, use the same logic as the platforms endpoint
     if (!platformData) {
