@@ -1454,6 +1454,10 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
     });
     
     logger.debug('Returning platform data for user:', userCacheKey, data);
+    console.log('=== PLATFORMS ENDPOINT RESPONSE ===');
+    console.log('- User cache key:', userCacheKey);
+    console.log('- Platform data returned:', data);
+    console.log('=== END PLATFORMS ENDPOINT ===');
     res.json(data);
   } catch (error) {
     console.error('Error fetching platforms:', error);
@@ -1573,6 +1577,7 @@ app.post("/api/platforms/:name/revenue", async (req, res) => {
 
 // Analytics
 app.get("/api/analytics", async (req, res) => {
+  console.log('=== ANALYTICS ENDPOINT CALLED ===');
   try {
     // Get user authentication (session or token-based)
     let user = null;
@@ -1669,6 +1674,11 @@ app.get("/api/analytics", async (req, res) => {
     
     // Calculate analytics based on the platform data with manual overrides
     const analytics = await platformManager.calculateAnalytics(platformDataWithOverrides, userId);
+    
+    console.log('=== ANALYTICS ENDPOINT RESPONSE ===');
+    console.log('- Final analytics data:', analytics);
+    console.log('- Platform data used:', platformDataWithOverrides);
+    console.log('=== END ANALYTICS ENDPOINT ===');
     
     res.json(analytics);
   } catch (error) {
