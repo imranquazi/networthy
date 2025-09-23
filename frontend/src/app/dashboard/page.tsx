@@ -245,25 +245,36 @@ export default function DashboardPage() {
       let platforms, analytics;
       
       try {
-        const [platformsRes, analyticsRes] = await Promise.all([
-          fetch(getApiUrl(`/api/platforms${refreshParam}`), {
-            credentials: 'include',
-            cache: 'no-cache',
-            headers
-          }),
-          fetch(getApiUrl(`/api/analytics${refreshParam}`), {
-            credentials: 'include',
-            cache: 'no-cache',
-            headers
-          })
-        ]);
+        console.log('Making API call to platforms endpoint...');
+        const platformsRes = await fetch(getApiUrl(`/api/platforms${refreshParam}`), {
+          credentials: 'include',
+          cache: 'no-cache',
+          headers
+        });
+        console.log('Platforms API call completed - status:', platformsRes.status);
 
-        if (!platformsRes.ok || !analyticsRes.ok) {
-          throw new Error(`API request failed: platforms=${platformsRes.status}, analytics=${analyticsRes.status}`);
+        if (!platformsRes.ok) {
+          throw new Error(`Platforms API request failed: ${platformsRes.status}`);
         }
 
         platforms = await platformsRes.json();
+        console.log('Platform data received:', platforms);
+
+        // Now make analytics call after platforms data is processed
+        console.log('Making API call to analytics endpoint...');
+        const analyticsRes = await fetch(getApiUrl(`/api/analytics${refreshParam}`), {
+          credentials: 'include',
+          cache: 'no-cache',
+          headers
+        });
+        console.log('Analytics API call completed - status:', analyticsRes.status);
+
+        if (!analyticsRes.ok) {
+          throw new Error(`Analytics API request failed: ${analyticsRes.status}`);
+        }
+
         analytics = await analyticsRes.json();
+        console.log('Analytics data received:', analytics);
       } catch (error) {
         console.error('Error fetching data:', error);
         setDataStatus('mock');
