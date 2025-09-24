@@ -1661,7 +1661,9 @@ app.get("/api/analytics", async (req, res) => {
     });
     
     if (hasRealPlatformData) {
-      console.log('Analytics: Detected real platform data, using it for analytics calculation');
+      console.log('Analytics: Detected real platform data, clearing analytics cache to force recalculation');
+      // Clear the analytics cache to force recalculation with real data
+      platformManager.clearAnalyticsCache();
     } else {
       console.log('Analytics: Using mock/default data for analytics calculation');
     }
