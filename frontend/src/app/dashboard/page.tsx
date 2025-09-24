@@ -142,6 +142,11 @@ export default function DashboardPage() {
   const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user: { email: string; platform: string } | null } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
+  
+  // Debug connected platforms state changes
+  useEffect(() => {
+    console.log('Connected platforms state changed to:', connectedPlatforms);
+  }, [connectedPlatforms]);
   const [dataStatus, setDataStatus] = useState<'mock' | 'real' | 'loading' | 'api_error'>('loading');
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -320,6 +325,7 @@ export default function DashboardPage() {
         console.log('Extracted connected platforms from data:', actualConnectedPlatforms);
         
         // Update connected platforms state immediately
+        console.log('Setting connected platforms to:', actualConnectedPlatforms);
         setConnectedPlatforms(actualConnectedPlatforms);
         
         // Improved logic: check if data is mock or real
