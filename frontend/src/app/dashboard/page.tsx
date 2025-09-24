@@ -120,6 +120,9 @@ interface PlatformData {
   revenue: number;
   growth: number;
   error?: string;
+  channelId?: string;
+  channelName?: string;
+  thumbnail?: string;
 }
 
 interface AnalyticsData {
@@ -139,6 +142,11 @@ export default function DashboardPage() {
   const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; user: { email: string; platform: string } | null } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
+  
+  // Debug connected platforms state changes
+  useEffect(() => {
+    console.log('Connected platforms state changed to:', connectedPlatforms);
+  }, [connectedPlatforms]);
   const [dataStatus, setDataStatus] = useState<'mock' | 'real' | 'loading' | 'api_error'>('loading');
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -190,10 +198,8 @@ export default function DashboardPage() {
         
         if (authRes && authRes.ok && authData?.authenticated) {
           setAuthStatus({ authenticated: true, user: authData.user });
-          // Set connected platforms if available
-          if (authData.user && authData.user.platform) {
-            setConnectedPlatforms(authData.user.platform.map((p: { name: string }) => p.name.toLowerCase()));
-          }
+          // Don't set connected platforms here - let the platform data processing handle it
+          // This prevents race conditions and ensures we use the actual platform data
         } else if (token) {
           // If we have a token but auth failed, try to continue anyway
           console.log('Auth failed but token exists, continuing with token-based requests');
@@ -244,25 +250,36 @@ export default function DashboardPage() {
       let platforms, analytics;
       
       try {
-        const [platformsRes, analyticsRes] = await Promise.all([
-          fetch(getApiUrl(`/api/platforms${refreshParam}`), {
-            credentials: 'include',
-            cache: 'no-cache',
-            headers
-          }),
-          fetch(getApiUrl(`/api/analytics${refreshParam}`), {
-            credentials: 'include',
-            cache: 'no-cache',
-            headers
-          })
-        ]);
+        console.log('Making API call to platforms endpoint...');
+        const platformsRes = await fetch(getApiUrl(`/api/platforms${refreshParam}`), {
+          credentials: 'include',
+          cache: 'no-cache',
+          headers
+        });
+        console.log('Platforms API call completed - status:', platformsRes.status);
 
-        if (!platformsRes.ok || !analyticsRes.ok) {
-          throw new Error(`API request failed: platforms=${platformsRes.status}, analytics=${analyticsRes.status}`);
+        if (!platformsRes.ok) {
+          throw new Error(`Platforms API request failed: ${platformsRes.status}`);
         }
 
         platforms = await platformsRes.json();
+        console.log('Platform data received:', platforms);
+
+        // Now make analytics call after platforms data is processed
+        console.log('Making API call to analytics endpoint...');
+        const analyticsRes = await fetch(getApiUrl(`/api/analytics${refreshParam}`), {
+          credentials: 'include',
+          cache: 'no-cache',
+          headers
+        });
+        console.log('Analytics API call completed - status:', analyticsRes.status);
+
+        if (!analyticsRes.ok) {
+          throw new Error(`Analytics API request failed: ${analyticsRes.status}`);
+        }
+
         analytics = await analyticsRes.json();
+        console.log('Analytics data received:', analytics);
       } catch (error) {
         console.error('Error fetching data:', error);
         setDataStatus('mock');
@@ -294,7 +311,25 @@ export default function DashboardPage() {
         }
         
         setPlatformData(validPlatforms);
-        // Simplified logic: just check if data is mock or not
+        
+        // Extract connected platforms from the platform data
+        // A platform is "connected" if it has channel-specific information (works for YouTube, Twitch, and TikTok)
+        const actualConnectedPlatforms = platforms
+          .filter(platform => {
+            // Check for channel-specific properties that indicate real connection
+            const hasChannelInfo = platform.channelId || platform.channelName || platform.thumbnail;
+            console.log(`Platform ${platform.name}: hasChannelInfo=${hasChannelInfo}, channelId=${platform.channelId}, channelName=${platform.channelName}, thumbnail=${platform.thumbnail}`);
+            return hasChannelInfo;
+          })
+          .map(platform => platform.name.toLowerCase());
+        console.log('Extracted connected platforms from data:', actualConnectedPlatforms);
+        
+        // Update connected platforms state immediately
+        console.log('Setting connected platforms to:', actualConnectedPlatforms);
+        setConnectedPlatforms(actualConnectedPlatforms);
+        
+        // Improved logic: check if data is mock or real
+        // Mock data has specific hardcoded values, real data has actual channel info
         const hasRealData = platforms.some((platform: PlatformData) => {
           const isMockData = (
             (platform.name === 'YouTube' && platform.subscribers === 125000 && platform.views === 2500000 && platform.revenue === 1200) ||
@@ -302,10 +337,15 @@ export default function DashboardPage() {
             (platform.name === 'TikTok' && platform.followers === 89000 && platform.views === 1200000 && platform.revenue === 430)
           );
           
-          return !isMockData;
+          // If it's not mock data AND has channel info (like channelId or channelName), it's real data
+          const hasChannelInfo = platform.channelId || platform.channelName || platform.thumbnail;
+          
+          console.log(`Platform ${platform.name}: isMockData=${isMockData}, hasChannelInfo=${hasChannelInfo}, channelId=${platform.channelId}, channelName=${platform.channelName}`);
+          
+          return !isMockData && hasChannelInfo;
         });
         
-
+        console.log('Has real data:', hasRealData);
 
         setPlatformData(platforms);
         setAnalyticsData(analytics);

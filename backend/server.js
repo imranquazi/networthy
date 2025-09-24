@@ -1454,6 +1454,10 @@ app.get("/api/platforms", deduplicateRequests, async (req, res) => {
     });
     
     logger.debug('Returning platform data for user:', userCacheKey, data);
+    console.log('=== PLATFORMS ENDPOINT RESPONSE ===');
+    console.log('- User cache key:', userCacheKey);
+    console.log('- Platform data returned:', data);
+    console.log('=== END PLATFORMS ENDPOINT ===');
     res.json(data);
   } catch (error) {
     console.error('Error fetching platforms:', error);
@@ -1573,6 +1577,7 @@ app.post("/api/platforms/:name/revenue", async (req, res) => {
 
 // Analytics
 app.get("/api/analytics", async (req, res) => {
+  console.log('=== ANALYTICS ENDPOINT CALLED ===');
   try {
     // Get user authentication (session or token-based)
     let user = null;
@@ -1619,10 +1624,17 @@ app.get("/api/analytics", async (req, res) => {
     const userId = user ? user.id : null;
     const userCacheKey = userId || 'anonymous';
     
-    // Get platform data from user-specific cache
+    // Get platform data from user-specific cache (same as platforms endpoint)
     let platformData = userPlatformCache.get(userCacheKey);
     
-    // If no cached data, fetch it using the same logic as the platforms endpoint
+    console.log('Analytics endpoint debug:');
+    console.log('- userCacheKey:', userCacheKey);
+    console.log('- userConnectedPlatforms:', userConnectedPlatforms);
+    console.log('- cached platformData:', platformData);
+    console.log('- Cache keys available:', Array.from(userPlatformCache.keys()));
+    console.log('- Cache size:', userPlatformCache.size);
+    
+    // If no cached data, use the same logic as the platforms endpoint
     if (!platformData) {
       // Use the same logic as the platforms endpoint
       if (userConnectedPlatforms.length > 0) {
@@ -1642,6 +1654,12 @@ app.get("/api/analytics", async (req, res) => {
       }
     }
     
+    // CRITICAL FIX: Check if we have real platform data but analytics is still using mock data
+    // This happens when the platforms endpoint has real data but analytics endpoint doesn't
+    const hasRealPlatformData = platformData.some(platform => {
+      return platform.channelId || platform.channelName || platform.thumbnail;
+    });
+    
     // Apply manual revenue overrides to platform data before calculating analytics
     const platformDataWithOverrides = platformData.map(platform => {
       if (manualRevenueOverrides[platform.name]) {
@@ -1650,8 +1668,21 @@ app.get("/api/analytics", async (req, res) => {
       return platform;
     });
     
+    if (hasRealPlatformData) {
+      console.log('Analytics: Detected real platform data, clearing analytics cache to force recalculation');
+      // Clear the analytics cache BEFORE calculating analytics to force recalculation with real data
+      platformManager.clearAnalyticsCache();
+    } else {
+      console.log('Analytics: Using mock/default data for analytics calculation');
+    }
+    
     // Calculate analytics based on the platform data with manual overrides
     const analytics = await platformManager.calculateAnalytics(platformDataWithOverrides, userId);
+    
+    console.log('=== ANALYTICS ENDPOINT RESPONSE ===');
+    console.log('- Final analytics data:', analytics);
+    console.log('- Platform data used:', platformDataWithOverrides);
+    console.log('=== END ANALYTICS ENDPOINT ===');
     
     res.json(analytics);
   } catch (error) {
