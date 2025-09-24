@@ -1660,14 +1660,6 @@ app.get("/api/analytics", async (req, res) => {
       return platform.channelId || platform.channelName || platform.thumbnail;
     });
     
-    if (hasRealPlatformData) {
-      console.log('Analytics: Detected real platform data, clearing analytics cache to force recalculation');
-      // Clear the analytics cache to force recalculation with real data
-      platformManager.clearAnalyticsCache();
-    } else {
-      console.log('Analytics: Using mock/default data for analytics calculation');
-    }
-    
     // Apply manual revenue overrides to platform data before calculating analytics
     const platformDataWithOverrides = platformData.map(platform => {
       if (manualRevenueOverrides[platform.name]) {
@@ -1675,6 +1667,14 @@ app.get("/api/analytics", async (req, res) => {
       }
       return platform;
     });
+    
+    if (hasRealPlatformData) {
+      console.log('Analytics: Detected real platform data, clearing analytics cache to force recalculation');
+      // Clear the analytics cache BEFORE calculating analytics to force recalculation with real data
+      platformManager.clearAnalyticsCache();
+    } else {
+      console.log('Analytics: Using mock/default data for analytics calculation');
+    }
     
     // Calculate analytics based on the platform data with manual overrides
     const analytics = await platformManager.calculateAnalytics(platformDataWithOverrides, userId);
